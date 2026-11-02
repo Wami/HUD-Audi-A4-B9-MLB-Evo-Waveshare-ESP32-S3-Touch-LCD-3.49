@@ -33,9 +33,9 @@
    на MQB другие кадры ACC, а колёсика подсветки и pre sense на шине нет.
    Please note: the default is MLB-Evo (Audi A4 B9). On an MQB car set HUD_PLATFORM_MQB, or ACC will not work. */
 #ifndef HUD_PLATFORM
-#define HUD_PLATFORM         HUD_PLATFORM_MLB_EVO   /* ← по умолчанию MLB-Evo / default: MLB-Evo */
+#define HUD_PLATFORM         HUD_PLATFORM_MQB   /* ← по умолчанию MLB-Evo / default: MLB-Evo */
 #endif
-#define HUD_DATA_SOURCE      HUD_SRC_AUTO
+#define HUD_DATA_SOURCE      HUD_SRC_BLE
 #define HUD_AUTO_CAN_HOLD_MS 1000   /* AUTO: столько без кадров по CAN — переходим на BLE */
 
 /* BLE-защита: код доступа задаётся в secrets.h (шаблон secrets.example.h).
@@ -136,7 +136,7 @@
    Играет в своей задаче, от отрисовки не зависит. Звуки — tools/sounds/,
    пересборка: python tools/make_sounds.py */
 #define HUD_SOUND_ENABLE           1     /* 0 — звук полностью выключен (кодек не трогается) */
-#define HUD_SOUND_STARTUP          1     /* стартовый звук при включении                     */
+#define HUD_SOUND_STARTUP          0     /* стартовый звук при включении                     */
 #define HUD_SOUND_STARTUP_DELAY_MS 300   /* пауза после запуска перед стартовым звуком        */
 #define HUD_SOUND_VOLUME           25    /* громкость 0..100                                  */
 
