@@ -842,20 +842,41 @@ static void hud_update_cb(lv_timer_t *t)
 #endif
     bool swa_any = (swa_i | swa_w) != 0;
 
-    for (int side = 0; side < 2; side++) {
+        for (int side = 0; side < 2; side++) {
         lv_obj_t *ln = side ? as_line_r : as_line_l;
         uint8_t  lv  = side ? d.lka_line_r : d.lka_line_l;
         bool     wr  = d.lka_warn & (side ? 2 : 1);
         uint8_t  bit = side ? 2 : 1;
         uint32_t col;
-        if (swa_w & bit)                          col = ((now % 400) < 200) ? C_SWA : 0x000000;
-        else if (swa_i & bit)                     col = C_SWA;
-        else if (!lka_on)                         col = C_GREEN;      /* только ACA */
-        else if (wr || lv == 3)                   col = ((now % 500) < 250) ? C_ORANGE : 0x000000;
-        else if (lv == 2)                         col = C_GREEN;
-        else                                      col = C_YELLOW;
+        lv_opa_t opa = LV_OPA_COVER;
+
+        if (swa_w & bit) {
+            /* SWA-предупреждение: мигаем «красным градиентом» (мягкий красный через
+               пониженную непрозрачность), период 500 мс — вдвое быстрее поворотника
+               (у поворотника период 1000 мс). */
+            bool on = (now % 500) < 250;
+            col = on ? C_SWA : 0x000000;
+            if (on) opa = LV_OPA_50;
+        } else if (swa_i & bit) {
+            /* SWA-инфо: постоянный мягкий красный (визуально «немного красным градиентом») */
+            col = C_SWA;
+            opa = LV_OPA_50;
+        } else if (!lka_on) {
+            col = C_GREEN;      /* только ACA */
+        } else if (wr || lv == 3) {
+            col = ((now % 500) < 250) ? C_ORANGE : 0x000000;
+        } else if (lv == 2) {
+            col = C_GREEN;
+        } else {
+            col = C_YELLOW;
+        }
+
         bool show = lines || ((swa_i | swa_w) & bit);
-        if (show) set_img_color(ln, col);
+        if (show) {
+            set_img_color(ln, col);
+            if (lv_obj_get_style_img_recolor_opa(ln, LV_PART_MAIN) != opa)
+                lv_obj_set_style_img_recolor_opa(ln, opa, 0);
+        }
         vis(ln, show);
     }
     if (swa_any) vis(as_own, true);                       /* своя машина — для понятности, где «сбоку» */
