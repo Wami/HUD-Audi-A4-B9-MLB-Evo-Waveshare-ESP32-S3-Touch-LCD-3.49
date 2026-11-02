@@ -110,8 +110,16 @@ static lv_obj_t *bar_seg[16];
 static lv_obj_t *route_icon, *route_lbl;
 static lv_obj_t *speed_lbl;
 static lv_obj_t *acc_dot, *acc_speed_lbl;   /* acc_dot — значок установки скорости ACC */
-static lv_obj_t *turn_left_container, *turn_right_container;
-static lv_obj_t *turn_left_sym, *turn_right_sym;
+
+/* Фоновое свечение поворотников: градиентная полоса 1/4 экрана от края */
+#define GLOW_W        160    /* ¼ экрана — мигающее свечение поворотника */
+#define GLOW_OPA      140    /* яркость большого свечения                 */
+#define GLOW_HINT_W   80     /* ⅛ экрана — ровная подсказка о помехе       */
+#define GLOW_HINT_OPA 100    /* бледнее, чтобы не отвлекать               */
+static lv_obj_t *glow_left, *glow_right;                     /* большие, мигают    */
+static lv_obj_t *glow_left_small, *glow_right_small;         /* маленькие, ровные  */
+static lv_obj_t *glow_left, *glow_right;
+
 static lv_obj_t *gear_lbl, *kmh_lbl, *tank_icon, *tank_lbl;
 static lv_obj_t *car_box, *car_part[6], *car_under[6];   /* FL FR RL RR HOOD TRUNK — как биты DOOR_* */
 static lv_obj_t *link_lbl, *pair_lbl;
@@ -955,27 +963,57 @@ static void hud_update_cb(lv_timer_t *t)
     tsr_update(&d, g_vze);
 #endif
 
-    /* --- мигалки --- */
+
+    /* --- мигалки + Side Assist ---
+     У ровни:                              *
+     1) поворотник на стороне + помеха на этой стороне — БОЛЬШОЕ МИГАЮЩЕЕ
+     КРАСНОЕ свечение (¼ экрана), фаза — как у поворотника;
+     2) поворотник / аварийка БЕЗ помехи — БОЛЬШОЕ МИГАЮЩЕЕ зелёное
+     (или оранжевое для аварийки) свечение (¼ экрана);
+     3) помеха БЕЗ поворотника на этой стороне — МАЛЕНЬКОЕ НЕМИГАЮЩЕЕ
+     красное свечение (⅛ экрана, бледнее).
+     Side Assist: swa_w из блока ACC/LKA выше; бит0 — слева, бит1 — справа. */
     bool bv  = d.valid & V_BLINK;
     bool haz = bv && (d.blink & BLINK_HAZARD);
-#if HUD_BLINK_FROM_TAKT
-    bool show_l = bv && (d.blink & BLINK_L_TAKT);
-    bool show_r = bv && (d.blink & BLINK_R_TAKT);
-#else
+
+    /* «поворотник включён» независимо от фазы: метка ставится при появлении
+     фазы и держится 800 мс — перекрывает *паузу между тактами и рваный BLE */
     static uint32_t seen_l, seen_r;
     if (bv && (d.blink & BLINK_L_TAKT)) seen_l = now ? now : 1;
     if (bv && (d.blink & BLINK_R_TAKT)) seen_r = now ? now : 1;
     bool act_l = haz || (bv && seen_l && now - seen_l < 800);
     bool act_r = haz || (bv && seen_r && now - seen_r < 800);
-    bool phase = (now % 1000) < 500;
+
+    /* фаза мигания: такт приборки (FROM_TAKT 1) или свой таймер 500/500 (0) */
+    #if HUD_BLINK_FROM_TAKT
+    bool show_l = act_l && (d.blink & BLINK_L_TAKT);
+    bool show_r = act_r && (d.blink & BLINK_R_TAKT);
+    #else
+    bool phase  = (now % 1000) < 500;
     bool show_l = act_l && phase;
     bool show_r = act_r && phase;
-#endif
-    uint32_t bcol = haz ? C_BLINK_RED : C_BLINK_GRN;
-    set_img_color(turn_left_sym, bcol);
-    set_img_color(turn_right_sym, bcol);
-    vis(turn_left_container, show_l);
-    vis(turn_right_container, show_r);
+    #endif
+
+    bool warn_l = (swa_w & 0x01) != 0;   /* помеха слева  */
+    bool warn_r = (swa_w & 0x02) != 0;   /* помеха справа */
+
+    /* большое мигающее свечение: помеха важнее — красный; иначе зелёный/оранжевый */
+    uint32_t col_l = warn_l ? C_BLINK_RED : (haz ? C_ORANGE : C_BLINK_GRN);
+    uint32_t col_r = warn_r ? C_BLINK_RED : (haz ? C_ORANGE : C_BLINK_GRN);
+    if (show_l) set_bg_color(glow_left, col_l);
+    if (show_r) lv_obj_set_style_bg_grad_color(glow_right, lv_color_hex(col_r), 0);
+    vis(glow_left,  show_l);
+    vis(glow_right, show_r);
+
+    /* маленькое ровное красное — помеха БЕЗ активного поворотника на этой стороне */
+    vis(glow_left_small,  warn_l && !act_l);
+    vis(glow_right_small, warn_r && !act_r);
+
+    /* Цветной край у левой полосы — слева (bg_color), у правой — справа (bg_grad_color). */
+    if (show_l) set_bg_color(glow_left, col_l);
+    if (show_r) lv_obj_set_style_bg_grad_color(glow_right, lv_color_hex(col_r), 0);
+    vis(glow_left,  show_l);
+    vis(glow_right, show_r);
 
     /* --- режим КП: код 0 (промежуточное) не показываем, держим прежний --- */
     static const char *gear_last = NULL;
@@ -1122,38 +1160,24 @@ static void hud_update_cb(lv_timer_t *t)
 /* ============================================================================
    Построение экрана (координаты — v6)
    ========================================================================== */
-/* Мигалки: внизу, поверх остальных элементов (создаются последними),
-   на 5 px выше исходных y=124. Картинка — две маски: чёрная обводка + заливка,
-   цвет заливки (зелёный / красный) задаётся img_recolor. */
-#define BLINK_L_X  2
-#define BLINK_R_X  (640 - 46 - 2)
-#define BLINK_Y    119
 
-static lv_obj_t *make_blinker(lv_obj_t *scr, int x, int y,
-                              const lv_img_dsc_t *outline, const lv_img_dsc_t *fill,
-                              lv_obj_t **fill_out)
+/* Полоса-свечение: цвет у одного края, чёрный (фон HUD) у другого.
+ *  w — ширина, opa — 0..255, color — что светится у «своего» края.
+ *  color_at_right = false: светится левый край (левая полоса)
+ *  color_at_right = true : светится правый край (правая полоса) */
+static lv_obj_t *make_glow(lv_obj_t *scr, int x, int w, int opa, uint32_t color, bool color_at_right)
 {
-    lv_obj_t *c = lv_obj_create(scr);
-    lv_obj_remove_style_all(c);
-    lv_obj_set_size(c, outline->header.w, outline->header.h);
-    lv_obj_set_pos(c, x, y);
-    lv_obj_clear_flag(c, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
-
-    lv_obj_t *o = lv_img_create(c);
-    lv_img_set_src(o, outline);
-    lv_obj_set_style_img_recolor(o, lv_color_black(), 0);
-    lv_obj_set_style_img_recolor_opa(o, LV_OPA_COVER, 0);
-    lv_obj_set_pos(o, 0, 0);
-
-    lv_obj_t *f = lv_img_create(c);
-    lv_img_set_src(f, fill);
-    lv_obj_set_style_img_recolor(f, lv_color_hex(C_BLINK_GRN), 0);
-    lv_obj_set_style_img_recolor_opa(f, LV_OPA_COVER, 0);
-    lv_obj_set_pos(f, 0, 0);
-
-    lv_obj_add_flag(c, LV_OBJ_FLAG_HIDDEN);
-    *fill_out = f;
-    return c;
+    lv_obj_t *g = lv_obj_create(scr);
+    lv_obj_remove_style_all(g);
+    lv_obj_set_size(g, w, 172);
+    lv_obj_set_pos(g, x, 0);
+    lv_obj_set_style_bg_opa(g, opa, 0);
+    lv_obj_set_style_bg_color(g, lv_color_hex(color_at_right ? 0x000000 : color), 0);
+    lv_obj_set_style_bg_grad_color(g, lv_color_hex(color_at_right ? color : 0x000000), 0);
+    lv_obj_set_style_bg_grad_dir(g, LV_GRAD_DIR_HOR, 0);
+    lv_obj_clear_flag(g, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(g, LV_OBJ_FLAG_HIDDEN);
+    return g;
 }
 
 static lv_obj_t *car_img(lv_obj_t *parent, const lv_img_dsc_t *src, int x, int y, uint32_t col)
@@ -1769,6 +1793,14 @@ void build_hud_mockup(void)
 
     int LX = 0;
 
+    /* Фоновое свечение — под всем остальным содержимым.
+     С начала маленькие (подсказка о помехе), затем большие (поворотник),                                 *
+     чтобы в случае чего большое было сверху. */
+    glow_left_small  = make_glow(scr, 0,                    GLOW_HINT_W, GLOW_HINT_OPA, C_BLINK_RED, false);
+    glow_right_small = make_glow(scr, 640 - GLOW_HINT_W,    GLOW_HINT_W, GLOW_HINT_OPA, C_BLINK_RED, true);
+    glow_left        = make_glow(scr, 0,                    GLOW_W,      GLOW_OPA,      C_BLINK_GRN, false);
+    glow_right       = make_glow(scr, 640 - GLOW_W,         GLOW_W,      GLOW_OPA,      C_BLINK_GRN, true);
+
     /* Знак */
     sign_obj = lv_obj_create(scr);
     /* Знак — максимальный круг для левой зоны: 64 px (до значка ACC/LKA на x=68),
@@ -2053,11 +2085,6 @@ void build_hud_mockup(void)
     lv_obj_set_style_text_color(kmh_lbl, lv_color_hex(C_LABEL_GRAY), 0);
     lv_obj_set_pos(kmh_lbl, 621 - 125, 133);
 
-    /* Мигалки */
-    turn_left_container  = make_blinker(scr, BLINK_L_X, BLINK_Y,
-                                        &img_blink_l_outline, &img_blink_l_fill, &turn_left_sym);
-    turn_right_container = make_blinker(scr, BLINK_R_X, BLINK_Y,
-                                        &img_blink_r_outline, &img_blink_r_fill, &turn_right_sym);
 
 #if HUD_TOUCH_ENABLE
     build_menu(scr);                       /* ловушка касаний и меню поверх всего */
