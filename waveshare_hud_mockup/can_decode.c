@@ -577,11 +577,10 @@ void can_decode_frame(uint32_t id, bool ext, const uint8_t *data, uint8_t dlc)
         fuel_update((uint16_t)sig(d, 48, 15));
         break;
 #if HUD_PLATFORM == HUD_PLATFORM_MQB
-    case 0x2A7: /* MQB: ACC активен — бит 58 (⚠️ гипотеза по совпадению интервалов, Octavia A7) */
-        s_data.acc_status = sig(d, 58, 1) ? 3 : 2;           /* 3 активен, 2 ожидание */
-        touch(S_ACC);
-        break;
-    case 0x30C: { /* MQB: ACC_02 — заданная скорость 16|6: км/ч = 5·v+5, 63 = не задана */
+    case 0x30C: { /* MQB: ACC_02 — заданная скорость 16|6: км/ч = 5·v+5, 63 = не задана (проверено на Passat: 60, 70).
+                     Статус ACC_Status_Anzeige 61|3 — то же значение, что ACC_14 16|3 на A4: 2 ожидание, 3 активен, 4 перехват
+                     педалью, 0 выкл. (по логу Passat 29.10 совпадает с прежним битом 58 в 0x2A7 в 99 % кадров) */
+        s_data.acc_status = (uint8_t)sig(d, 61, 3);
         uint32_t v = sig(d, 16, 6);
         s_data.acc_set_raw = (v == 63) ? 0x3FF : (uint16_t)((((v * 5u + 5u) * 100u) + 16u) / 32u);   /* км/ч -> ×0.32 */
         /* Машина впереди: 45|2 — как в ACC_12 на A4 (в активном ACC на Октавии 94 % кадров = 1,
