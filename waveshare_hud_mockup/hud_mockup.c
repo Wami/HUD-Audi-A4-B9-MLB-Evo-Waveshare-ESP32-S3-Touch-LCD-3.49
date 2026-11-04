@@ -1100,56 +1100,72 @@ static void hud_update_cb(lv_timer_t *t)
         vis(link_lbl, lshow);
     }
 
-    /* --- мигалки + Side Assist ---
-     У ровни:                              *
-     1) поворотник на стороне + помеха на этой стороне — БОЛЬШОЕ МИГАЮЩЕЕ
-     КРАСНОЕ свечение (¼ экрана), фаза — как у поворотника;
-     2) поворотник / аварийка БЕЗ помехи — БОЛЬШОЕ МИГАЮЩЕЕ зелёное
-     (или оранжевое для аварийки) свечение (¼ экрана);
-     3) помеха БЕЗ поворотника на этой стороне — МАЛЕНЬКОЕ НЕМИГАЮЩЕЕ
-     красное свечение (⅛ экрана, бледнее).
-     Side Assist: swa_w из блока ACC/LKA выше; бит0 — слева, бит1 — справа. */
+    /* --- мигалки + Side Assist --- */
     bool bv  = d.valid & V_BLINK;
     bool haz = bv && (d.blink & BLINK_HAZARD);
 
     /* «поворотник включён» независимо от фазы: метка ставится при появлении
-     фазы и держится 800 мс — перекрывает *паузу между тактами и рваный BLE */
+     фазы и держится 800 мс — перекрывает паузу между тактами и рваный BLE */
     static uint32_t seen_l, seen_r;
     if (bv && (d.blink & BLINK_L_TAKT)) seen_l = now ? now : 1;
     if (bv && (d.blink & BLINK_R_TAKT)) seen_r = now ? now : 1;
     bool act_l = haz || (bv && seen_l && now - seen_l < 800);
     bool act_r = haz || (bv && seen_r && now - seen_r < 800);
 
-    /* фаза мигания: такт приборки (FROM_TAKT 1) или свой таймер 500/500 (0) */
-    #if HUD_BLINK_FROM_TAKT
+    /* фаза поворотника/аварийки (для стрелок и для большого свечения
+       от поворотника; при swa_warn больш. свечение использует свой 500 мс) */
+#if HUD_BLINK_FROM_TAKT
     bool show_l = act_l && (d.blink & BLINK_L_TAKT);
     bool show_r = act_r && (d.blink & BLINK_R_TAKT);
-    #else
+#else
     bool phase  = (now % 1000) < 500;
     bool show_l = act_l && phase;
     bool show_r = act_r && phase;
-    #endif
+#endif
 
-    bool warn_l = (swa_w & 0x01) != 0;   /* помеха слева  */
-    bool warn_r = (swa_w & 0x02) != 0;   /* помеха справа */
+    /* Стрелки на экране (картинки мигалок) — как раньше */
+    uint32_t bcol = haz ? C_BLINK_RED : C_BLINK_GRN;
+    set_img_color(turn_left_sym, bcol);
+    set_img_color(turn_right_sym, bcol);
+    vis(turn_left_container, show_l);
+    vis(turn_right_container, show_r);
 
-    /* большое мигающее свечение: помеха важнее — красный; иначе зелёный/оранжевый */
-    uint32_t col_l = warn_l ? C_BLINK_RED : (haz ? C_ORANGE : C_BLINK_GRN);
-    uint32_t col_r = warn_r ? C_BLINK_RED : (haz ? C_ORANGE : C_BLINK_GRN);
-    if (show_l) set_bg_color(glow_left, col_l);
-    if (show_r) lv_obj_set_style_bg_grad_color(glow_right, lv_color_hex(col_r), 0);
-    vis(glow_left,  show_l);
-    vis(glow_right, show_r);
+    /* --- градиентное свечение и SWA --- */
+    bool warn_l = (swa_w & 0x01) != 0;   /* swa_warn слева  */
+    bool warn_r = (swa_w & 0x02) != 0;   /* swa_warn справа */
+    bool info_l = (swa_i & 0x01) != 0;   /* swa_info слева  */
+    bool info_r = (swa_i & 0x02) != 0;   /* swa_info справа */
 
-    /* маленькое ровное красное — помеха БЕЗ активного поворотника на этой стороне */
-    vis(glow_left_small,  warn_l && !act_l);
-    vis(glow_right_small, warn_r && !act_r);
+    /* Большое свечение:
+       - swa_warn на стороне → красный, мигание 500 мс (250/250, вдвое
+         чаще поворотника), независимо от фазы поворотника; красный важнее
+         аварийки (в машине при аварийке swa_warn обычно не приходит,
+         но если пришёл — побеждает warn);
+       - иначе поворотник/аварийка на стороне → зелёный/оранжевый,
+         фаза — от такта приборки (HUD_BLINK_FROM_TAKT=1) или 1000 мс (0);
+       - иначе → скрыто. */
+    bool swa_phase = (now % 500) < 250;
 
-    /* Цветной край у левой полосы — слева (bg_color), у правой — справа (bg_grad_color). */
-    if (show_l) set_bg_color(glow_left, col_l);
-    if (show_r) lv_obj_set_style_bg_grad_color(glow_right, lv_color_hex(col_r), 0);
-    vis(glow_left,  show_l);
-    vis(glow_right, show_r);
+    bool big_show_l, big_show_r;
+    uint32_t big_col_l, big_col_r;
+
+    if (warn_l) { big_show_l = swa_phase; big_col_l = C_BLINK_RED; }
+    else        { big_show_l = show_l;    big_col_l = haz ? C_ORANGE : C_BLINK_GRN; }
+
+    if (warn_r) { big_show_r = swa_phase; big_col_r = C_BLINK_RED; }
+    else        { big_show_r = show_r;    big_col_r = haz ? C_ORANGE : C_BLINK_GRN; }
+
+    if (big_show_l) set_bg_color(glow_left, big_col_l);
+    if (big_show_r) lv_obj_set_style_bg_grad_color(glow_right, lv_color_hex(big_col_r), 0);
+    vis(glow_left,  big_show_l);
+    vis(glow_right, big_show_r);
+
+    /* Маленькое ровное красное — swa_info на стороне:
+       - swa_warn нет на этой стороне (иначе приоритет у большого красного);
+       - большое свечение сейчас не горит (иначе оно перекрывает «на такт»:
+         красное видно в фазе паузы, оранжевое/зелёное — в фазе такта). */
+    vis(glow_left_small,  info_l && !warn_l && !big_show_l);
+    vis(glow_right_small, info_r && !warn_r && !big_show_r);
 
     /* --- режим КП: код 0 (промежуточное) не показываем, держим прежний --- */
     static const char *gear_last = NULL;
