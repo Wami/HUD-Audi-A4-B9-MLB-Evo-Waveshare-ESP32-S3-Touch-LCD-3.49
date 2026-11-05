@@ -346,6 +346,18 @@ static void bc_message(uint8_t fct, const uint8_t *p, uint16_t n)
     taskEXIT_CRITICAL(&s_mux);
 }
 
+#if HUD_LOG_BAP
+/* функция навигации пришла, но данные помечены как невалидные (флаги): печать при смене содержимого —
+   чтобы понять, почему нет ETA / бар-графа / дистанции (например, на дальнем участке маршрута) */
+#define BAP_LOG_DROP(f, p, n) do { \
+        static uint8_t d_f[16]; static uint8_t d_n; uint8_t m_ = (n) > 16 ? 16 : (uint8_t)(n); \
+        if (d_n != m_ + 1 || memcmp(d_f, (p), m_) != 0) { \
+            d_n = m_ + 1; memcpy(d_f, (p), m_); \
+            char hx_[3 * 16 + 1] = ""; int o_ = 0; \
+            for (int k_ = 0; k_ < m_; k_++) o_ += snprintf(hx_ + o_, sizeof hx_ - o_, "%02X ", (p)[k_]); \
+            arduino_printf("[bap] fct 0x%02X: данные невалидны [%u]: %s\n", (f), (unsigned)(n), hx_); } } while (0)
+#endif
+
 static void bap_message(uint16_t hdr, const uint8_t *p, uint16_t n)
 {
     uint8_t opcode = (hdr >> 12) & 7;
@@ -384,6 +396,9 @@ static void bap_message(uint16_t hdr, const uint8_t *p, uint16_t n)
                 touch(S_MDIST);
             } else {
                 s_last[S_MDIST] = 0;
+#if HUD_LOG_BAP
+                BAP_LOG_DROP(0x12, p, n);
+#endif
             }
         }
         break;
@@ -407,6 +422,9 @@ static void bap_message(uint16_t hdr, const uint8_t *p, uint16_t n)
                 touch(S_TTE);
             } else {
                 s_last[S_TTE] = 0;
+#if HUD_LOG_BAP
+                BAP_LOG_DROP(0x16, p, n);
+#endif
             }
         }
         break;
@@ -489,7 +507,7 @@ void hud_data_fake_doors(uint8_t mask)
 
 /* ---------- диагностика: счётчики кадров по ID ---------- */
 #if HUD_PLATFORM == HUD_PLATFORM_MQB
-static const uint16_t s_dbg_ids[] = { 0x30B, 0x2A7, 0x30C, 0x31E, 0x394, 0x366, 0x181, 0x397, 0x583, 0x65A, 0x5F0, 0x5A0, 0x30F, 0x101, 0x6B2, 0x462, 0x463, 0x464 };
+static const uint16_t s_dbg_ids[] = { 0x30B, 0x30C, 0x31E, 0x394, 0x366, 0x181, 0x397, 0x583, 0x65A, 0x5F0, 0x5A0, 0x30F, 0x101, 0x6B2, 0x462, 0x463, 0x464 };
 #else
 static const uint16_t s_dbg_ids[] = { 0x30B, 0x2A6, 0x2A8, 0x31E, 0x394, 0x366, 0x181, 0x397, 0x583, 0x65A, 0x2A9, 0x5F0, 0x5A0, 0x64F, 0x30F, 0x101, 0x6B2, 0x462, 0x463, 0x464 };
 #endif
