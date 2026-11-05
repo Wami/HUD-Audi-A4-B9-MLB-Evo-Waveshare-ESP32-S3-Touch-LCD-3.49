@@ -824,6 +824,10 @@ static void hud_update_cb(lv_timer_t *t)
         LED_gruen = 1 → обе линии Lane Assist зелёные; иначе линий нет.
         Side Assist (см. цикл ниже) сохраняет свой приоритет цвета и может показать
         красную полоску даже без LED_gruen — эта логика одинакова для всех платформ. */
+
+        bool lka_on = (d.valid & V_LKA) && d.lka_state != LKA_OFF; //проверить
+        bool aca_on = acc_on && d.aca_lane == 2;          /* удержание в полосе в составе ACC *///проверить
+
         bool lines  = (d.valid & V_LKA) && d.lka_green;
     #else
         bool lka_on = (d.valid & V_LKA) && d.lka_state != LKA_OFF;
@@ -867,64 +871,31 @@ static void hud_update_cb(lv_timer_t *t)
 #endif
     bool swa_any = (swa_i | swa_w) != 0;
 
-        for (int side = 0; side < 2; side++) {
+    for (int side = 0; side < 2; side++) {
         lv_obj_t *ln = side ? as_line_r : as_line_l;
         uint8_t  bit = side ? 2 : 1;
-<<<<<<< HEAD
-        uint32_t col;
-        lv_opa_t opa = LV_OPA_COVER;
-
-        if (swa_w & bit) {
-            /* SWA-предупреждение: мигаем «красным градиентом» (мягкий красный через
-               пониженную непрозрачность), период 500 мс — вдвое быстрее поворотника
-               (у поворотника период 1000 мс). */
-            bool on = (now % 500) < 250;
-            col = on ? C_SWA : 0x000000;
-            if (on) opa = LV_OPA_50;
-        } else if (swa_i & bit) {
-            /* SWA-инфо: постоянный мягкий красный (визуально «немного красным градиентом») */
-            col = C_SWA;
-            opa = LV_OPA_50;
-        } else if (!lka_on) {
-            col = C_GREEN;      /* только ACA */
-        } else if (wr || lv == 3) {
-            col = ((now % 500) < 250) ? C_ORANGE : 0x000000;
-        } else if (lv == 2) {
-            col = C_GREEN;
-        } else {
-            col = C_YELLOW;
-        }
-
-        bool show = lines || ((swa_i | swa_w) & bit);
-        if (show) {
-            set_img_color(ln, col);
-            if (lv_obj_get_style_img_recolor_opa(ln, LV_PART_MAIN) != opa)
-                lv_obj_set_style_img_recolor_opa(ln, opa, 0);
-        }
-=======
         uint32_t col = 0;
         bool     show = false;
 
         /* Side Assist — одинаково на всех платформах, имеет приоритет цвета */
         if (swa_w & bit)      { col = ((now % 400) < 200) ? C_SWA : 0x000000; show = true; }
         else if (swa_i & bit) { col = C_SWA; show = true; }
-#if HUD_PLATFORM == HUD_PLATFORM_MQB
+        #if HUD_PLATFORM == HUD_PLATFORM_MQB
         /* MQB: линии Lane Assist — только по LED_gruen, всегда зелёные.
-           Жёлтый индикатор, Lernmodus и предупреждение отдельных цветов не дают. */
+         *      Жёлтый индикатор, Lernmodus и предупреждение отдельных цветов не дают. */
         else if (lines)       { col = C_GREEN; show = true; }
-#else
+        #else
         else {
             uint8_t lv = side ? d.lka_line_r : d.lka_line_l;
             bool    wr = d.lka_warn & bit;
             if (!lka_on)            col = C_GREEN;      /* только ACA */
-            else if (wr || lv == 3) col = ((now % 500) < 250) ? C_ORANGE : 0x000000;
-            else if (lv == 2)       col = C_GREEN;
-            else                    col = C_YELLOW;
-            show = lines;
+                else if (wr || lv == 3) col = ((now % 500) < 250) ? C_ORANGE : 0x000000;
+                else if (lv == 2)       col = C_GREEN;
+                else                    col = C_YELLOW;
+                show = lines;
         }
-#endif
+        #endif
         if (show) set_img_color(ln, col);
->>>>>>> 46d110a (Lane Assist для mqb с активным ведением)
         vis(ln, show);
     }
     if (swa_any) vis(as_own, true);                       /* своя машина — для понятности, где «сбоку» */
