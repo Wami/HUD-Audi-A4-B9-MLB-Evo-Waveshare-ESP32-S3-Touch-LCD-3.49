@@ -91,7 +91,7 @@ typedef struct {
     uint8_t  acc_gap;        /* ACC_12.ACC_Gesetzte_Zeitluecke: дистанция 1..5, 0 нет */
     uint16_t acc_abstand;    /* ACC_02 (0x30C, MQB): ACC_Abstandsindex.
                             0 и 1022 = «серая дорога» (цели нет);
-                            1023 = зел./красн. зона (цель есть);
+                            1023 = служебное значение (цели нет);
                             1..1021 = реальный индекс дистанции (цель есть). */
     uint8_t  aca_lane;       /* ACC_12.ACA_Querfuehrung: 0 нет, 1 пассив, 2 активно, 3 предупр. */
     uint8_t  awv_warn;       /* ACC_15.AWV_Warnung: 0 нет, 1 латентная, 2 предупр., 3 острая,

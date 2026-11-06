@@ -603,8 +603,9 @@ void can_decode_frame(uint32_t id, bool ext, const uint8_t *data, uint8_t dlc)
         s_data.acc_set_raw = (v == 63) ? 0x3FF : (uint16_t)((((v * 5u + 5u) * 100u) + 16u) / 32u);   /* км/ч -> ×0.32 */
         /* Машина впереди: 45|2 — как в ACC_12 на A4 (в активном ACC на Октавии 94 % кадров = 1,
            остальные 0; ⚠️ по совпадению с раскладкой A4, не по документации). Зазор 37|3. */
-        s_data.acc_object = sig(d, 45, 2);
-        s_data.acc_gap    = sig(d, 37, 3);
+        s_data.acc_object  = sig(d, 45, 2);
+        s_data.acc_abstand = (uint16_t)sig(d, 24, 10);   /* ACC_Abstandsindex: 1..1021 — цель есть, 1023 — цели нет */
+        s_data.acc_gap     = sig(d, 37, 3);
         touch(S_ACC);
         break; }
 #else

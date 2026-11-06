@@ -921,11 +921,14 @@ static void hud_update_cb(lv_timer_t *t)
  #if HUD_PLATFORM == HUD_PLATFORM_MQB
     /* MQB: помимо ACC_Relevantes_Objekt_02, машина впереди определяется по ACC_Abstandsindex:
        0 и 1022 = «серая дорога» (Sonderanzeige_graue_Fahrbahn) — цели нет,
-       1..1021 и 1023 (зел./красн. зона) — цель есть.
+       1023 — служебное значение, цели нет,
+       1..1021 = реальный индекс дистанции — цель есть.
        В логах Relevantes_Objekt часто = 0 даже когда впереди есть машина, а Abstandsindex
-       при этом > 0 (пример: Abstandsindex = 972 при Relevantes_Objekt = 0). */
-    bool abstand_lead = (d.valid & V_ACC) && d.acc_abstand != 0 && d.acc_abstand != 1022;
-    bool obj          = obj_warn || (acc_on && (d.acc_object == 1 || abstand_lead));
+       при этом > 0 (пример: Abstandsindex = 972 при Relevantes_Objekt = 0).
+       Цель показывается независимо от статуса ACC — достаточно свежих данных V_ACC.
+       acc_object оставлен как fallback: в имеющихся логах MQB он всегда 0. */
+    bool abstand_lead = (d.valid & V_ACC) && d.acc_abstand != 0 && d.acc_abstand != 1022 && d.acc_abstand != 1023;
+    bool obj          = obj_warn || ((d.valid & V_ACC) && d.acc_object == 1) || abstand_lead;
 #else
     bool obj          = obj_warn || (acc_on && d.acc_object == 1);
 #endif
@@ -940,7 +943,7 @@ static void hud_update_cb(lv_timer_t *t)
 
     /* цвет своей машины задаёт только ACC; состояние Lane Assist показывают боковые полосы */
     uint32_t own_col = acc_on ? acc_col : C_GRAY;
-    vis(as_own, acc_on || obj_warn);        /* Lane Assist своей машинки не вызывает */
+    vis(as_own, acc_on || obj);             /* ACC, опасное сближение или цель впереди (MQB) */
     set_img_color(as_own, own_col);
 
     /* Side Assist: машина сбоку — полоска этой стороны красная (поверх цвета LKA),
@@ -979,7 +982,7 @@ static void hud_update_cb(lv_timer_t *t)
         vis(ln, show);
     }
     if (swa_any) vis(as_own, true);                       /* своя машина — для понятности, где «сбоку» */
-    vis(assist_box, acc_on || lines || obj_warn || swa_any);
+    vis(assist_box, acc_on || lines || obj || swa_any);
 
 #if HUD_SWA && HUD_SWA_BEEP
     {   /* звук: на появлении предупреждения и дальше раз в HUD_SWA_BEEP_REPEAT_MS */
