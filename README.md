@@ -42,7 +42,7 @@ Data is read passively from the I-CAN (infotainment) bus on MLB-Evo or from the 
 | **ACC** | Set-speed icon + set speed. Standby is dimmed, active is bright. Nothing is shown in standby when no speed is set |
 | **Speed limiter** | `LIM` text in place of the ACC icon + limiter speed. Grey without a number = on, speed not set yet |
 | **Traffic jam assist** | Three-cars icon next to the ACC speed: grey = ready, green = active, orange = warning |
-| **ACC / Lane Assist icon** | Built from layers: own car, lead car (ACC target in the ACC colour; with `ACC_Relevantes_Objekt_02` = 2, too-close distance, **red and shown even when ACC is off**), radar waves, Lane Assist side lines (green/yellow/orange show the Lane Assist state; the own car is grey unless ACC is on or a dangerous approach is shown; Side Assist red lines take priority) |
+| **ACC / Lane Assist icon** | Built from layers: own car, lead car (ACC target in the ACC colour; with `ACC_Relevantes_Objekt_02` = 2, too-close distance, **red and shown even when ACC is off**), radar waves, Lane Assist side lines (green/yellow/orange show the Lane Assist state; the own car is grey unless ACC is on or a dangerous approach is shown; Side Assist red lines take priority). On MQB the lead car moves vertically with `ACC_Abstandsindex` (distance ×0.1 m): 10 m at the bottom, 100 m at the top, perspective scale; small jitter is smoothed, a new target (cut-in) is shown immediately |
 | **Lane Assist** | Each side line is coloured on its own from `LDW_02`: green = line detected, yellow = line not seen, blinking orange = lane departure warning. The own car on the icon stays grey (it is coloured by ACC only) |
 | **Side Assist** | Lane lines on the assist icon in red, **even with Lane Assist and ACC off**: car in the blind spot — the line lights up, attempted lane change — it blinks and the HUD beeps (repeats every 1.2 s while active) |
 | **Speed limit signs** | 64 px circle, red ring, Roboto Condensed Bold digits. Source priority: **PSD** (MIB route prediction) explicit sign → `VZE_01` → PSD legal limit (town 60 / rural 90 / motorway 110). PSD works even when the cluster shows no signs. Several signs (extra VZE signs, no overtaking) rotate every 1 s |
@@ -779,6 +779,7 @@ The generator scripts in `tools/` write straight into `waveshare_hud_mockup/`.
 | ACC active | 0x2A8, 16\|3 | 0x2A7, bit 58 (1 → active, 0 → standby) | ⚠️ from engagement intervals in the logs |
 | ACC set speed | 0x2A6, 12\|10, ×0.32 km/h | 0x30C (ACC_02), 16\|6: 5 × value + 5 km/h, 63 = not set (kept while ACC is inactive) | ✅ |
 | Lead vehicle | 0x2A6, 45\|2 | 0x30C, 45\|2 | ⚠️ same layout as the A4, not verified on a real series |
+| Distance to target | — | 0x30C, 24\|10: `ACC_Abstandsindex`, ×0.1 m (0/1022/1023 = no target); sets the lead car's vertical position (10 m at the bottom, 100 m at the top) | ✅ |
 | ACC time gap | 0x2A6, 37\|3 | 0x30C, 37\|3 | ⚠️ constantly 1 in the logs |
 | Pre sense (ACC_15) | 0x2A9 | not on the bus | disabled |
 | Lighting wheel | 0x64F, 25\|7 | 0x5F0 byte 2 (16\|8), stands at 100 | ⚠️ confirmed as the lighting control by the driver, movement not recorded |

@@ -82,8 +82,14 @@ extern "C" {
 #define SIGN_RING    7     /* толщина красного кольца */
 /* Островки внимания: ACC слева, скорость в центре, навигация справа.
    ACC/LKA: видимый значок внизу контейнера 64x114; сверху запас 60 px
-   под будущее увеличение и ход машинки впереди по дистанции. */
+   под ход машинки впереди по дистанции (MQB, ACC_Abstandsindex). */
 #define ACC_PAD      60
+/* MQB: положение машинки впереди по ACC_Abstandsindex (дистанция ×0.1 м).
+   Шкала перспективная (1/d): 10 м — внизу, 100 м — вверху (ход 0..ACC_PAD). */
+#define ACC_LEAD_NEAR_DM 100      /* 10.0 м — у своей машины               */
+#define ACC_LEAD_FAR_DM  1000     /* 100 м — верх блока                    */
+#define ACC_LEAD_SLEW_PX 4        /* плавно: до 4 px за тик 50 мс          */
+#define ACC_LEAD_JUMP_DM 50       /* скачок > 5 м за тик — новая цель      */
 #define SPEED_X      182   /* левый край блока скорости (3 цифры: 194..438) */
 #define SPEED_W      256
 #define NAV_X        448   /* левый край области навигации 192 px            */
@@ -931,6 +937,53 @@ static void hud_update_cb(lv_timer_t *t)
     bool obj          = obj_warn || ((d.valid & V_ACC) && d.acc_object == 1) || abstand_lead;
 #else
     bool obj          = obj_warn || (acc_on && d.acc_object == 1);
+#endif
+
+#if HUD_PLATFORM == HUD_PLATFORM_MQB
+    /* Машинку впереди двигаем по измеренной дистанции ACC_Abstandsindex.
+       Мелкий дребезг (±1 px) не отрабатываем, плавные изменения — по 1..4 px
+       за тик; новая цель (скачок > 5 м за тик или появление/пропадание)
+       ставится сразу. Без валидной дистанции (fallback по acc_object) —
+       нижнее положение, как раньше. */
+    {
+        static int      lead_travel;   /* текущий подъём машинки, 0..ACC_PAD */
+        static uint16_t lead_prev_dm;  /* предыдущий ACC_Abstandsindex       */
+
+        uint16_t dnow   = abstand_lead ? d.acc_abstand : 0;
+        int      target = 0;
+
+        if (abstand_lead) {
+            int dm = dnow;
+            if (dm < ACC_LEAD_NEAR_DM) dm = ACC_LEAD_NEAR_DM;
+            if (dm > ACC_LEAD_FAR_DM)  dm = ACC_LEAD_FAR_DM;
+            /* перспектива 1/d: 10 м -> 0 px, 100 м -> 60 px */
+            target = (ACC_PAD * (dm - ACC_LEAD_NEAR_DM) * ACC_LEAD_FAR_DM) /
+                     (dm * (ACC_LEAD_FAR_DM - ACC_LEAD_NEAR_DM));
+            if (target < 0)       target = 0;
+            if (target > ACC_PAD) target = ACC_PAD;
+        }
+
+        int dd = (int)dnow - (int)lead_prev_dm;
+        if (dd < 0) dd = -dd;
+        bool jump = (dnow == 0) || (lead_prev_dm == 0) || (dd > ACC_LEAD_JUMP_DM);
+
+        if (jump) {
+            lead_travel = target;                 /* новая цель — сразу */
+        } else {
+            int delta = target - lead_travel;
+            if (delta > 1 || delta < -1) {        /* ±1 px — дребезг, не двигаем */
+                int step = delta / 2;
+                if (step >  ACC_LEAD_SLEW_PX) step =  ACC_LEAD_SLEW_PX;
+                if (step < -ACC_LEAD_SLEW_PX) step = -ACC_LEAD_SLEW_PX;
+                if (step == 0) step = delta > 0 ? 1 : -1;
+                lead_travel += step;
+            }
+        }
+
+        int y = ASSIST_FRONT_Y + ACC_PAD - lead_travel;
+        if (lv_obj_get_y(as_front) != y) lv_obj_set_y(as_front, y);
+        lead_prev_dm = dnow;
+    }
 #endif
 
     vis(as_front, obj);
@@ -2056,8 +2109,8 @@ void build_hud_mockup(void)
 #endif
 
     /* ACC / LKA — левый край. Контейнер 64x114: видимый значок прижат вниз,
-       сверху оставлены 60 px под будущее увеличение и ход машинки впереди
-       по измеренной дистанции (as_front.y уменьшается на travel 0..60). */
+       сверху оставлены 60 px — ход машинки впереди по ACC_Abstandsindex на MQB
+       (as_front.y уменьшается на travel 0..ACC_PAD). */
     assist_box = lv_obj_create(scr);
     lv_obj_remove_style_all(assist_box);
     lv_obj_set_size(assist_box, 64, 54 + ACC_PAD);
