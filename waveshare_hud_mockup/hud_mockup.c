@@ -92,11 +92,11 @@ extern "C" {
 #define C_NAV_ARROW  0x30b0f0   /* маршрут — голубой, как у Audi */
 #define C_NAV_ROAD   0xffffff   /* слой дороги: серая заливка + белая кайма заложены в маске яркостью */
 #define C_NAV_NEXT   0xa8a8a8
-#define TOP_BAR_W    192         /* HUD_NAV_BAR_TOP: ширина полоски = ширина области стрелки */
-#define TOP_BAR_H    4
+#define TOP_BAR_W    8           /* HUD_NAV_BAR_TOP: вертикальная полоска у правого края */
+#define TOP_BAR_H    140
 #if HUD_NAV_BAR_TOP
-#define NAV_DY       13          /* статичные стрелки опущены: свободное место над ними (до бара) = под ними (до дистанции) */
-#define ANIM_DY      6           /* кадр анимации 192x130: те же отступы между баром и строкой дистанции */
+#define NAV_DY       23          /* статичные стрелки ниже строки дистанции (она заканчивается на y=28) */
+#define ANIM_DY      6           /* кадр анимации 192x130: остаётся на прежнем месте */
 #else
 #define NAV_DY       0
 #define ANIM_DY      0
@@ -104,7 +104,7 @@ extern "C" {
 #define C_LINK_BLE   0x1f4fb0   /* BLE подключён */
 #define C_LINK_CAN   0x1e8a3c   /* данные по CAN */
 #define C_BAR_ON     0x4a90d9
-#define C_BAR_OFF    0x222222
+#define C_BAR_OFF    0x333333
 
 /* ---------- хэндлы ---------- */
 static lv_obj_t *sign_obj, *sign_lbl, *sign_end_line, *sign_car_l, *sign_car_r;
@@ -124,7 +124,7 @@ static lv_obj_t *fuel_bar;               /* расход топлива, пра�
 static lv_obj_t *arrow_ph, *arrow_road, *arrow_img, *arrow_lbl, *nav_dist_lbl, *next_img;
 static lv_obj_t *anim_img;                 /* анимированная стрелка из /arrows.bin (кадр на чёрном фоне) */
 static lv_obj_t *bar_seg[16];
-static lv_obj_t *top_bar, *top_fill;      /* HUD_NAV_BAR_TOP: тонкая полоска прогресса над стрелкой */
+static lv_obj_t *top_bar, *top_fill;      /* HUD_NAV_BAR_TOP: вертикальная шкала прогресса справа */
 static lv_obj_t *route_lbl;              /* маршрут: одна строка справа под навигацией */
 static lv_obj_t *speed_lbl;
 static lv_obj_t *acc_dot, *acc_speed_lbl;   /* acc_dot — значок установки скорости ACC */
@@ -1253,7 +1253,8 @@ static void hud_update_cb(lv_timer_t *t)
         static const NavImg *n2_last = NULL;
         if (n2 && n2 != n2_last) {
             lv_img_set_src(next_img, n2->img);
-            lv_obj_set_pos(next_img, NAV_AREA_W - NAV_SMALL_W - 2 + n2->x, NAV_TOP_Y + n2->y);
+            /* -10: оставляем 2 px до вертикальной шкалы прогресса у правого края */
+            lv_obj_set_pos(next_img, NAV_AREA_W - NAV_SMALL_W - 10 + n2->x, NAV_TOP_Y + n2->y);
         }
         n2_last = n2;
         vis(next_img, n2 != NULL);
@@ -1317,20 +1318,34 @@ static void hud_update_cb(lv_timer_t *t)
         (void)calc;
     }
 
-    int filled = -1;   /* -1 = бар скрыт */
-    if (nav && (HUD_NAV_BAR_TOP || !anim_on) && (d.valid & V_MDIST) && d.bargraph != 0xFF)
-        filled = d.bargraph * 16 / 100;
 #if HUD_NAV_BAR_TOP
-    vis(top_bar, filled >= 0);
-    if (filled >= 0) {
-        int pct = HUD_ANIM_BAR_INVERT ? 100 - d.bargraph : d.bargraph;   /* как у анимации: полоска растёт к манёвру */
-        int w = pct * TOP_BAR_W / 100;
-        if (w < 0) w = 0;
-        if (lv_obj_get_width(top_fill) != w) lv_obj_set_width(top_fill, w < 1 ? 1 : w);
-        vis(top_fill, w > 0);
+    /* Вертикальная шкала у правого края: фон виден всегда, когда есть
+       навигация и дистанция до манёвра; заливка — только при bar-graph. */
+    bool bar_show = nav && (d.valid & V_MDIST);
+    vis(top_bar, bar_show);
+    if (bar_show && d.bargraph != 0xFF) {
+        int pct = HUD_ANIM_BAR_INVERT ? 100 - d.bargraph : d.bargraph;   /* растёт к манёвру */
+        int h = pct * TOP_BAR_H / 100;
+        if (h < 0) h = 0;
+        if (h > TOP_BAR_H) h = TOP_BAR_H;
+        if (pct > 0 && h < 1) h = 1;
+        if (h > 0) {
+            if (lv_obj_get_height(top_fill) != h) {
+                lv_obj_set_height(top_fill, h);
+                lv_obj_set_y(top_fill, TOP_BAR_H - h);          /* заливка снизу вверх */
+            }
+            vis(top_fill, true);
+        } else {
+            vis(top_fill, false);
+        }
+    } else {
+        vis(top_fill, false);
     }
     for (int i = 0; i < 16; i++) vis(bar_seg[i], false);
 #else
+    int filled = -1;   /* -1 = бар скрыт */
+    if (nav && !anim_on && (d.valid & V_MDIST) && d.bargraph != 0xFF)
+        filled = d.bargraph * 16 / 100;
     for (int i = 0; i < 16; i++) {
         vis(bar_seg[i], filled >= 0);
         if (filled >= 0) set_bg_color(bar_seg[i], i < filled ? C_BAR_ON : C_BAR_OFF);
@@ -2086,7 +2101,7 @@ void build_hud_mockup(void)
     lv_obj_set_style_text_color(nav_dist_lbl, lv_color_white(), 0);
     lv_obj_set_style_text_align(nav_dist_lbl, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(nav_dist_lbl, 192);
-    lv_obj_set_pos(nav_dist_lbl, 0, NAV_TOP_Y);          /* сверху, под полоской прогресса */
+    lv_obj_set_pos(nav_dist_lbl, 0, NAV_TOP_Y);          /* сверху, над стрелкой */
     lv_obj_add_flag(nav_dist_lbl, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(arrow_ph, LV_OBJ_FLAG_HIDDEN);
 
@@ -2116,9 +2131,9 @@ void build_hud_mockup(void)
     for (int i = 0; i < 6; i++) lv_obj_add_flag(car_part[i], LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(car_box, LV_OBJ_FLAG_HIDDEN);
 
-    /* Бар ускорения — по нижнему краю под стрелкой навигации, из центра в обе стороны */
+    /* Бар ускорения — под цифрами скорости, из центра в обе стороны */
     {
-        int cx = NAV_X + 192 / 2;
+        int cx = SPEED_X + SPEED_W / 2;
         for (int i = 0; i < ACC_SEG; i++)
             for (int sd = 0; sd < 2; sd++) {
                 lv_obj_t *q = lv_obj_create(scr);
@@ -2162,17 +2177,17 @@ void build_hud_mockup(void)
         top_bar = lv_obj_create(scr);
         lv_obj_remove_style_all(top_bar);
         lv_obj_set_size(top_bar, TOP_BAR_W, TOP_BAR_H);
-        lv_obj_set_pos(top_bar, NAV_X, 1);
-        lv_obj_set_style_radius(top_bar, TOP_BAR_H / 2, 0);
+        lv_obj_set_pos(top_bar, 640 - TOP_BAR_W, 5);       /* правый край, ниже строки дистанции */
+        lv_obj_set_style_radius(top_bar, TOP_BAR_W / 2, 0);
         lv_obj_set_style_bg_color(top_bar, lv_color_hex(C_BAR_OFF), 0);
         lv_obj_set_style_bg_opa(top_bar, LV_OPA_COVER, 0);
         lv_obj_clear_flag(top_bar, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_flag(top_bar, LV_OBJ_FLAG_HIDDEN);
         top_fill = lv_obj_create(top_bar);
         lv_obj_remove_style_all(top_fill);
-        lv_obj_set_size(top_fill, 1, TOP_BAR_H);
-        lv_obj_set_pos(top_fill, 0, 0);
-        lv_obj_set_style_radius(top_fill, TOP_BAR_H / 2, 0);
+        lv_obj_set_size(top_fill, TOP_BAR_W, 1);
+        lv_obj_set_pos(top_fill, 0, TOP_BAR_H - 1);
+        lv_obj_set_style_radius(top_fill, TOP_BAR_W / 2, 0);
         lv_obj_set_style_bg_color(top_fill, lv_color_hex(C_BAR_ON), 0);
         lv_obj_set_style_bg_opa(top_fill, LV_OPA_COVER, 0);
         lv_obj_clear_flag(top_fill, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
@@ -2202,8 +2217,8 @@ void build_hud_mockup(void)
     lv_obj_set_style_text_color(route_lbl, lv_color_white(), 0);
     lv_obj_set_style_text_align(route_lbl, LV_TEXT_ALIGN_RIGHT, 0);
     lv_label_set_long_mode(route_lbl, LV_LABEL_LONG_CLIP);
-    lv_obj_set_width(route_lbl, 438);
-    lv_obj_set_pos(route_lbl, LX + 194, 143);
+    lv_obj_set_width(route_lbl, 434);
+    lv_obj_set_pos(route_lbl, LX + 194, 150);
     lv_obj_add_flag(route_lbl, LV_OBJ_FLAG_HIDDEN);
 
 #if HUD_TSR_STATE
@@ -2232,7 +2247,7 @@ void build_hud_mockup(void)
             lv_obj_set_style_text_align(o, LV_TEXT_ALIGN_RIGHT, 0);
             lv_label_set_long_mode(o, LV_LABEL_LONG_CLIP);
             lv_obj_set_width(o, SPEED_W);
-            lv_obj_set_pos(o, SPEED_X + off[i][0], 20 + off[i][1]);
+            lv_obj_set_pos(o, SPEED_X + off[i][0], 28 + off[i][1]);
             lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
             spd_outline[i] = o;
         }
@@ -2245,7 +2260,7 @@ void build_hud_mockup(void)
     lv_obj_set_style_text_align(speed_lbl, LV_TEXT_ALIGN_RIGHT, 0);
     lv_label_set_long_mode(speed_lbl, LV_LABEL_LONG_CLIP);
     lv_obj_set_width(speed_lbl, SPEED_W);
-    lv_obj_set_pos(speed_lbl, SPEED_X, 20);
+    lv_obj_set_pos(speed_lbl, SPEED_X, 28);
     lv_obj_add_flag(speed_lbl, LV_OBJ_FLAG_HIDDEN);
 
     /* Режим КП — над скоростью, серым, правый край по цифрам скорости
