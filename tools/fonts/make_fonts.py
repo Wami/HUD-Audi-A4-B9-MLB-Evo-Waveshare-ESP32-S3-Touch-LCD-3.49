@@ -26,7 +26,7 @@ COND = os.path.join(HERE, "RobotoCondensed-Bold.ttf")   # цифры знака 
 FONTS = [
     ("hud_font_speed", 116, "0123456789", TNUM),
     ("hud_font_gear",   22, "PRNDSMEOfroad123456789", TNUM),
-    ("hud_font_fuel",   22, "0123456789.Lлgal ", TNUM),      # сколько заправить: "13 л" / "3.4 gal"
+    ("hud_font_fuel",   22, "0123456789.Lлgal :кмftimhч", TNUM),  # tank + route: "13 л", "7.0км 10:00", "4.3mi 10:00"
     ("hud_font_route",  28, "0123456789:.kmhift кмч", TNUM),   # без букв с выносными вниз (y): иначе растёт межстрочный
     ("hud_font_small",  26, "0123456789", TNUM),
     ("hud_font_kmh",    38, "km/hpкмч", TNUM),

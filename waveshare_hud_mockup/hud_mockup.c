@@ -45,13 +45,12 @@
 /* Шрифты: Montserrat Bold (SIL OFL 1.1) с табличными цифрами — см. tools/fonts/ */
 LV_FONT_DECLARE(hud_font_speed);  /* скорость, цифры ~84 px                          */
 LV_FONT_DECLARE(hud_font_gear);   /* режим КП, ~15 px: P R N D S M E Offroad 1-9     */
-LV_FONT_DECLARE(hud_font_route);  /* маршрут, дистанция, ~19 px: 0-9 : . km h mi ft км м ч */
+LV_FONT_DECLARE(hud_font_route);  /* дистанция камеры и манёвра, ~19 px: 0-9 : . km h mi ft км м ч */
 LV_FONT_DECLARE(hud_font_small);  /* скорость ACC / лимитера, знак 2 цифры, ~18 px   */
 LV_FONT_DECLARE(hud_font_sign2);  /* знак 2 цифры, Roboto Condensed Bold, ~28 px     */
 LV_FONT_DECLARE(hud_font_sign3);  /* знак 3 цифры, Roboto Condensed Bold, ~21 px     */
-LV_FONT_DECLARE(hud_font_kmh);
-LV_FONT_DECLARE(hud_font_menu);
-LV_FONT_DECLARE(hud_font_fuel);   /* «сколько заправить»: 0-9 . L л g a l          */   /* меню настроек: латиница + кириллица, 20 px      */    /* подпись км/ч / km/h / mph, ~29 px               */
+LV_FONT_DECLARE(hud_font_menu);   /* меню настроек: латиница + кириллица, 20 px      */
+LV_FONT_DECLARE(hud_font_fuel);   /* заправка и маршрут, 22 px: 0-9 . L л g a l : к м f t i m h ч */
 
 #ifdef __cplusplus
 extern "C" {
@@ -81,6 +80,14 @@ extern "C" {
 #define C_SIGN_RED   0xcc0000
 #define SIGN_D       64    /* диаметр знака         */
 #define SIGN_RING    7     /* толщина красного кольца */
+/* Островки внимания: ACC слева, скорость в центре, навигация справа.
+   ACC/LKA: видимый значок внизу контейнера 64x114; сверху запас 60 px
+   под будущее увеличение и ход машинки впереди по дистанции. */
+#define ACC_PAD      60
+#define SPEED_X      182   /* левый край блока скорости (3 цифры: 194..438) */
+#define SPEED_W      256
+#define NAV_X        448   /* левый край области навигации 192 px            */
+#define NAV_TOP_Y    1     /* верх строки дистанции/следующего манёвра       */
 #define C_SIGN_WARN  0xff8080
 #define C_NAV_ARROW  0x30b0f0   /* маршрут — голубой, как у Audi */
 #define C_NAV_ROAD   0xffffff   /* слой дороги: серая заливка + белая кайма заложены в маске яркостью */
@@ -94,7 +101,6 @@ extern "C" {
 #define NAV_DY       0
 #define ANIM_DY      0
 #endif
-#define NAV_BOTTOM_Y 165         /* низ строки «дистанция + малая стрелка» в области навигации (от её верха), px */
 #define C_LINK_BLE   0x1f4fb0   /* BLE подключён */
 #define C_LINK_CAN   0x1e8a3c   /* данные по CAN */
 #define C_BAR_ON     0x4a90d9
@@ -119,7 +125,7 @@ static lv_obj_t *arrow_ph, *arrow_road, *arrow_img, *arrow_lbl, *nav_dist_lbl, *
 static lv_obj_t *anim_img;                 /* анимированная стрелка из /arrows.bin (кадр на чёрном фоне) */
 static lv_obj_t *bar_seg[16];
 static lv_obj_t *top_bar, *top_fill;      /* HUD_NAV_BAR_TOP: тонкая полоска прогресса над стрелкой */
-static lv_obj_t *route_icon, *route_lbl;
+static lv_obj_t *route_lbl;              /* маршрут: одна строка справа под навигацией */
 static lv_obj_t *speed_lbl;
 static lv_obj_t *acc_dot, *acc_speed_lbl;   /* acc_dot — значок установки скорости ACC */
 
@@ -132,9 +138,9 @@ static lv_obj_t *glow_left, *glow_right;                     /* большие, 
 static lv_obj_t *glow_left_small, *glow_right_small;         /* маленькие, ровные  */
 static lv_obj_t *glow_left, *glow_right;
 
-static lv_obj_t *gear_lbl, *kmh_lbl, *tank_icon, *tank_lbl;
+static lv_obj_t *gear_lbl, *tank_icon, *tank_lbl;
 static lv_obj_t *car_box, *car_part[6], *car_under[6];   /* FL FR RL RR HOOD TRUNK — как биты DOOR_* */
-static lv_obj_t *link_lbl, *pair_lbl;
+static lv_obj_t *link_lbl;
 static bool link_pf;                    /* сопряжение не принято — значка источника нет */
 static bool tsr_shown;                  /* кружок TSR показан — значок источника на его месте не рисуем */
 
@@ -235,7 +241,7 @@ static lv_obj_t *cm_sq, *cm_disc, *cm_lim, *cm_dist, *cm_eye;
 static void cams_build(lv_obj_t *scr)
 {
     cm_sq = lv_obj_create(scr);
-    lv_obj_set_size(cm_sq, SIGN_D, SIGN_D); lv_obj_set_pos(cm_sq, 1, 2);
+    lv_obj_set_size(cm_sq, SIGN_D, SIGN_D); lv_obj_set_pos(cm_sq, 68, 2);
     lv_obj_set_style_radius(cm_sq, 6, 0);
     lv_obj_set_style_bg_color(cm_sq, lv_color_hex(C_YELLOW), 0);
     lv_obj_set_style_border_width(cm_sq, 0, 0);
@@ -255,14 +261,14 @@ static void cams_build(lv_obj_t *scr)
     lv_obj_set_style_text_color(cm_lim, lv_color_black(), 0);
     lv_obj_center(cm_lim);
 
-    cm_eye = car_img(scr, &img_cam_icon, 5, 80, C_YELLOW);   /* значок камеры со вспышкой */
+    cm_eye = car_img(scr, &img_cam_icon, 72, 70, C_YELLOW);   /* значок камеры со вспышкой под знаком */
 
     cm_dist = lv_label_create(scr);  lv_label_set_text(cm_dist, "");
     lv_obj_set_style_text_font(cm_dist, &hud_font_route, 0);
     lv_obj_set_style_text_color(cm_dist, lv_color_hex(C_YELLOW), 0);
     lv_label_set_long_mode(cm_dist, LV_LABEL_LONG_CLIP);
     lv_obj_set_style_text_align(cm_dist, LV_TEXT_ALIGN_LEFT, 0);
-    lv_obj_set_width(cm_dist, 130); lv_obj_set_pos(cm_dist, 50, 86);   /* справа от значка камеры */
+    lv_obj_set_width(cm_dist, 120); lv_obj_set_pos(cm_dist, 68, 102);   /* под знаком и значком камеры */
 
     lv_obj_add_flag(cm_sq, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(cm_dist, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(cm_eye, LV_OBJ_FLAG_HIDDEN);
@@ -340,12 +346,13 @@ static int tsr_text_w(lv_obj_t *l, const lv_font_t *f)
     return p.x;
 }
 
-/* середина свободного места верхней строки между «сколько заправить» и передачей (зона 376..626) */
+/* середина свободного места верхней строки между «сколько заправить» и передачей
+   (зона скорости 182..438) */
 static int top_gap_cx(void)
 {
-    int left = 376, right = 626;
-    if (!lv_obj_has_flag(tank_lbl, LV_OBJ_FLAG_HIDDEN)) left = 396 + tsr_text_w(tank_lbl, &hud_font_fuel);
-    if (!lv_obj_has_flag(gear_lbl, LV_OBJ_FLAG_HIDDEN)) right = 626 - tsr_text_w(gear_lbl, &hud_font_gear);
+    int left = SPEED_X, right = SPEED_X + SPEED_W;
+    if (!lv_obj_has_flag(tank_lbl, LV_OBJ_FLAG_HIDDEN)) left = SPEED_X + 20 + tsr_text_w(tank_lbl, &hud_font_fuel);
+    if (!lv_obj_has_flag(gear_lbl, LV_OBJ_FLAG_HIDDEN)) right = SPEED_X + SPEED_W - tsr_text_w(gear_lbl, &hud_font_gear);
     return (left + right) / 2;
 }
 
@@ -375,7 +382,7 @@ static void tsr_update(const HudData *d, bool vze_on)
     if (show) {
         uint32_t col = d->tsr_hint == 3 ? C_TSR_GREEN : d->tsr_hint == 5 ? C_TSR_RED : C_TSR_YELLOW;
         set_bg_color(tsr_dot, col);
-        /* по центру между правым краем «сколько заправить» и левым краем передачи (если их нет — края зоны 376..626) */
+        /* по центру между правым краем «сколько заправить» и левым краем передачи (если их нет — края зоны 182..438) */
         int cx = top_gap_cx();
         if (lv_obj_get_x(tsr_dot) != cx - TSR_D / 2) lv_obj_set_x(tsr_dot, cx - TSR_D / 2);
     }
@@ -742,9 +749,6 @@ static void hud_update_cb(lv_timer_t *t)
     (void)now;
     uint16_t lim_kmh_for_speed = 0;
 
-    /* --- подпись единиц скорости (язык / единицы могут смениться на ходу) --- */
-    set_text(kmh_lbl, g_units == HUD_UNITS_MI ? "mph" : txt()->kmh);
-
     /* --- бар ускорения по CAN: зелёный — разгон, красный — торможение ---
        ESP_02 (если есть на шине), иначе производная скорости Kombi_01 */
     {
@@ -824,12 +828,8 @@ static void hud_update_cb(lv_timer_t *t)
 #endif
 
     /* --- связь, яркость --- */
-    /* BLE-сопряжение не удаётся — подсказка вместо значка связи */
+    /* BLE-сопряжение не удаётся — значок источника не показываем */
     bool pf = !d.link_up && hud_src_pair_failed();
-    if (pf) set_text(pair_lbl, g_lang == HUD_LANG_EN
-        ? "Pairing rejected. Check the passkey or reset pairings on the device: hold BOOT for 5 s."
-        : "Сопряжение не принято. Проверьте код доступа или сбросьте сопряжения на устройстве: удерживайте BOOT 5 с.");
-    vis(pair_lbl, pf);
     link_pf = pf;      /* значок источника обновляется ниже, после TSR (они делят место в верхней строке) */
     update_brightness(&d, now);
 
@@ -1245,7 +1245,7 @@ static void hud_update_cb(lv_timer_t *t)
 
     const NavImg *ni = nav ? nav_pick(&nav_big, d.man_main, d.man_dir) : NULL;
 
-    /* следующий манёвр (Maneuver_2) — маленькой серой стрелкой в правом нижнем углу */
+    /* следующий манёвр (Maneuver_2) — маленькой серой стрелкой в правом верхнем углу */
     {
         uint8_t m2 = d.man2_main;
         bool show2 = nav && ni != NULL && m2 != 0x00 && m2 != 0x01 && m2 != 0x09 && m2 != 0x0A;
@@ -1253,7 +1253,7 @@ static void hud_update_cb(lv_timer_t *t)
         static const NavImg *n2_last = NULL;
         if (n2 && n2 != n2_last) {
             lv_img_set_src(next_img, n2->img);
-            lv_obj_set_pos(next_img, NAV_AREA_W - NAV_SMALL_W - 2 + n2->x, NAV_BOTTOM_Y - NAV_SMALL_H + n2->y);
+            lv_obj_set_pos(next_img, NAV_AREA_W - NAV_SMALL_W - 2 + n2->x, NAV_TOP_Y + n2->y);
         }
         n2_last = n2;
         vis(next_img, n2 != NULL);
@@ -1346,10 +1346,10 @@ static void hud_update_cb(lv_timer_t *t)
             if (d.tte_type == 0) snprintf(l2, sizeof l2, "%u:%02u%s", d.tte_h, d.tte_min, txt()->h);
             else                 snprintf(l2, sizeof l2, "%02u:%02u", d.tte_h, d.tte_min);
         }
-        snprintf(buf, sizeof buf, "%s\n%s", l1, l2);
+        if (dv && tv) snprintf(buf, sizeof buf, "%s %s", l1, l2);
+        else          snprintf(buf, sizeof buf, "%s", dv ? l1 : l2);
         set_text(route_lbl, buf);
     }
-    vis(route_icon, dv || tv);
     vis(route_lbl, dv || tv);
 }
 
@@ -2004,10 +2004,9 @@ void build_hud_mockup(void)
 
     /* Знак */
     sign_obj = lv_obj_create(scr);
-    /* Знак — максимальный круг для левой зоны: 64 px (до значка ACC/LKA на x=68),
-       красное кольцо 7 px (~11 %, как у дорожного знака), белое поле 50 px */
+    /* Знак — 64 px правее ACC/LKA, над камерой и её дистанцией */
     lv_obj_set_size(sign_obj, SIGN_D, SIGN_D);
-    lv_obj_set_pos(sign_obj, LX + 1, 2);
+    lv_obj_set_pos(sign_obj, LX + 68, 2);
     lv_obj_set_style_radius(sign_obj, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_bg_color(sign_obj, lv_color_white(), 0);
     lv_obj_set_style_border_color(sign_obj, lv_color_hex(0xcc0000), 0);
@@ -2041,32 +2040,33 @@ void build_hud_mockup(void)
     cams_build(scr);
 #endif
 
-    /* ACC / LKA */
-    /* Значок ACC / Lane Assist — слои-маски, цвет каждого задаётся отдельно */
+    /* ACC / LKA — левый край. Контейнер 64x114: видимый значок прижат вниз,
+       сверху оставлены 60 px под будущее увеличение и ход машинки впереди
+       по измеренной дистанции (as_front.y уменьшается на travel 0..60). */
     assist_box = lv_obj_create(scr);
     lv_obj_remove_style_all(assist_box);
-    lv_obj_set_size(assist_box, 64, 54);
-    lv_obj_set_pos(assist_box, LX + 68, 5);
+    lv_obj_set_size(assist_box, 64, 54 + ACC_PAD);
+    lv_obj_set_pos(assist_box, LX, 54);
     lv_obj_clear_flag(assist_box, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
-    as_line_l = car_img(assist_box, &img_assist_line_l, ASSIST_LINE_L_X, ASSIST_LINE_L_Y, C_GREEN);
-    as_line_r = car_img(assist_box, &img_assist_line_r, ASSIST_LINE_R_X, ASSIST_LINE_R_Y, C_GREEN);
-    as_arcs   = car_img(assist_box, &img_assist_arcs,   ASSIST_ARCS_X,   ASSIST_ARCS_Y,   C_GREEN);
-    as_front  = car_img(assist_box, &img_assist_front,  ASSIST_FRONT_X,  ASSIST_FRONT_Y,  C_GREEN);
-    as_own    = car_img(assist_box, &img_assist_own,    ASSIST_OWN_X,    ASSIST_OWN_Y,    C_GREEN);
+    as_line_l = car_img(assist_box, &img_assist_line_l, ASSIST_LINE_L_X, ASSIST_LINE_L_Y + ACC_PAD, C_GREEN);
+    as_line_r = car_img(assist_box, &img_assist_line_r, ASSIST_LINE_R_X, ASSIST_LINE_R_Y + ACC_PAD, C_GREEN);
+    as_arcs   = car_img(assist_box, &img_assist_arcs,   ASSIST_ARCS_X,   ASSIST_ARCS_Y   + ACC_PAD, C_GREEN);
+    as_front  = car_img(assist_box, &img_assist_front,  ASSIST_FRONT_X,  ASSIST_FRONT_Y  + ACC_PAD, C_GREEN);
+    as_own    = car_img(assist_box, &img_assist_own,    ASSIST_OWN_X,    ASSIST_OWN_Y    + ACC_PAD, C_GREEN);
     lv_obj_add_flag(assist_box, LV_OBJ_FLAG_HIDDEN);
 
     /* Стрелка (заглушка текстом) */
     /* Стрелка навигации: картинка (hud_nav_images, 4-бит маски) + дистанция
        до манёвра под ней. Область 192x140: стрелка 192x116, строка — ниже. */
-    /* анимированная стрелка (если есть /arrows.bin): кадр 208x140 — область стрелки + место бара */
+    /* анимированная стрелка (если есть /arrows.bin): кадр 192x130 — область стрелки + место бара */
     anim_img = lv_img_create(scr);
-    lv_obj_set_pos(anim_img, LX + 145, 5 + ANIM_DY);
+    lv_obj_set_pos(anim_img, NAV_X, 5 + ANIM_DY);
     lv_obj_add_flag(anim_img, LV_OBJ_FLAG_HIDDEN);
 
     arrow_ph = lv_obj_create(scr);
     lv_obj_remove_style_all(arrow_ph);
     lv_obj_set_size(arrow_ph, 192, 167);
-    lv_obj_set_pos(arrow_ph, LX + 145, 5);
+    lv_obj_set_pos(arrow_ph, NAV_X, 5);
     lv_obj_clear_flag(arrow_ph, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     arrow_road = car_img(arrow_ph, nav_big.turn[0].road, nav_big.turn[0].rx, nav_big.turn[0].ry, C_NAV_ROAD);   /* под стрелкой */
     lv_obj_add_flag(arrow_road, LV_OBJ_FLAG_HIDDEN);
@@ -2086,7 +2086,7 @@ void build_hud_mockup(void)
     lv_obj_set_style_text_color(nav_dist_lbl, lv_color_white(), 0);
     lv_obj_set_style_text_align(nav_dist_lbl, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(nav_dist_lbl, 192);
-    lv_obj_set_pos(nav_dist_lbl, 0, NAV_BOTTOM_Y - 22);
+    lv_obj_set_pos(nav_dist_lbl, 0, NAV_TOP_Y);          /* сверху, под полоской прогресса */
     lv_obj_add_flag(nav_dist_lbl, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(arrow_ph, LV_OBJ_FLAG_HIDDEN);
 
@@ -2094,7 +2094,7 @@ void build_hud_mockup(void)
     car_box = lv_obj_create(scr);
     lv_obj_remove_style_all(car_box);
     lv_obj_set_size(car_box, 192, 140);
-    lv_obj_set_pos(car_box, LX + 145, 5);
+    lv_obj_set_pos(car_box, NAV_X, 5);
     lv_obj_clear_flag(car_box, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     car_img(car_box, &img_car_body,   CAR_BODY_X,   CAR_BODY_Y,   C_CAR_BODY);
     car_img(car_box, &img_car_lights, CAR_LIGHTS_X, CAR_LIGHTS_Y, C_CAR_LIGHTS);
@@ -2118,7 +2118,7 @@ void build_hud_mockup(void)
 
     /* Бар ускорения — по нижнему краю под стрелкой навигации, из центра в обе стороны */
     {
-        int cx = LX + 145 + 192 / 2;
+        int cx = NAV_X + 192 / 2;
         for (int i = 0; i < ACC_SEG; i++)
             for (int sd = 0; sd < 2; sd++) {
                 lv_obj_t *q = lv_obj_create(scr);
@@ -2150,7 +2150,7 @@ void build_hud_mockup(void)
     ps_box = lv_obj_create(scr);
     lv_obj_remove_style_all(ps_box);
     lv_obj_set_size(ps_box, 192, 140);
-    lv_obj_set_pos(ps_box, LX + 145, 5);
+    lv_obj_set_pos(ps_box, NAV_X, 5);
     lv_obj_clear_flag(ps_box, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     ps_tri = car_img(ps_box, &img_presense_tri, (192 - 92) / 2, 6, 0xe01414);
     car_img(ps_box, &img_presense_txt, (192 - img_presense_txt.header.w) / 2, 98, 0xffffff);
@@ -2162,7 +2162,7 @@ void build_hud_mockup(void)
         top_bar = lv_obj_create(scr);
         lv_obj_remove_style_all(top_bar);
         lv_obj_set_size(top_bar, TOP_BAR_W, TOP_BAR_H);
-        lv_obj_set_pos(top_bar, LX + 145, 1);
+        lv_obj_set_pos(top_bar, NAV_X, 1);
         lv_obj_set_style_radius(top_bar, TOP_BAR_H / 2, 0);
         lv_obj_set_style_bg_color(top_bar, lv_color_hex(C_BAR_OFF), 0);
         lv_obj_set_style_bg_opa(top_bar, LV_OPA_COVER, 0);
@@ -2177,7 +2177,9 @@ void build_hud_mockup(void)
         lv_obj_set_style_bg_opa(top_fill, LV_OPA_COVER, 0);
         lv_obj_clear_flag(top_fill, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
 #endif
-        int bar_x = LX + 339, bar_y_bottom = 5 + 140;
+        /* Запасной 16-сегментный бар (HUD_NAV_BAR_TOP=0): слева от стрелки,
+           чтобы не вылезать за экран и не спорить с иконкой следующего манёвра. */
+        int bar_x = NAV_X, bar_y_bottom = 5 + 140;
         int seg_w = 14, seg_h = 7, seg_gap = 2;
         for (int i = 0; i < 16; i++) {
             lv_obj_t *seg = lv_obj_create(scr);
@@ -2192,46 +2194,33 @@ void build_hud_mockup(void)
         }
     }
 
-    /* Маршрутная инфа */
-    route_icon = lv_label_create(scr);
-    lv_label_set_text(route_icon, LV_SYMBOL_GPS);
-    lv_obj_set_style_text_color(route_icon, lv_color_white(), 0);
-    lv_obj_set_pos(route_icon, LX + 5, 132);
-    lv_obj_add_flag(route_icon, LV_OBJ_FLAG_HIDDEN);
-
+    /* Маршрут — одной строкой справа под навигацией; при длинном тексте
+       уходит влево под цифры скорости */
     route_lbl = lv_label_create(scr);
     lv_label_set_text(route_lbl, "");
-    lv_obj_set_style_text_font(route_lbl, &hud_font_route, 0);
+    lv_obj_set_style_text_font(route_lbl, &hud_font_fuel, 0);
     lv_obj_set_style_text_color(route_lbl, lv_color_white(), 0);
-    lv_obj_set_pos(route_lbl, LX + 25, 126);
+    lv_obj_set_style_text_align(route_lbl, LV_TEXT_ALIGN_RIGHT, 0);
+    lv_label_set_long_mode(route_lbl, LV_LABEL_LONG_CLIP);
+    lv_obj_set_width(route_lbl, 438);
+    lv_obj_set_pos(route_lbl, LX + 194, 143);
     lv_obj_add_flag(route_lbl, LV_OBJ_FLAG_HIDDEN);
 
 #if HUD_TSR_STATE
     tsr_build(scr);
 #endif
 
-    /* Статус связи — под стрелкой, виден только без связи */
-    pair_lbl = lv_label_create(scr);
-    lv_label_set_text(pair_lbl, "");
-    lv_label_set_long_mode(pair_lbl, LV_LABEL_LONG_WRAP);
-    lv_obj_set_width(pair_lbl, 344);
-    lv_obj_set_pos(pair_lbl, 8, 34);
-    lv_obj_set_style_text_font(pair_lbl, &hud_font_menu, 0);
-    lv_obj_set_style_text_color(pair_lbl, lv_color_hex(C_ORANGE), 0);
-    lv_obj_add_flag(pair_lbl, LV_OBJ_FLAG_HIDDEN);
-
-    /* Индикатор источника данных — под стрелкой навигации, по центру её области
-       (внизу, под дистанцией). Выровнен по центру области 192 px. */
+    /* Индикатор источника данных — в верхней строке, между заправкой и передачей */
     link_lbl = lv_label_create(scr);
     lv_label_set_text(link_lbl, LV_SYMBOL_BLUETOOTH " ...");
     lv_obj_set_style_text_color(link_lbl, lv_color_hex(0x666666), 0);
-    lv_obj_set_pos(link_lbl, 480, 4);                          /* x подбирается в апдейте: середина между заправкой и передачей */
+    lv_obj_set_pos(link_lbl, SPEED_X + SPEED_W / 2, 4);        /* x уточняется в апдейте */
 
-    /* ===== Правая зона ===== */
-    int RX = 360;
+    /* ===== Центр: скорость; ACC-скорость прижата к ACC слева ===== */
+    int RX = 64;
 
     /* Скорость: фиксированная ширина под 3 цифры, выравнивание вправо,
-       правый край = 376 + 256 = 632. v9: на 20 px ниже (y=20). */
+       правый край = 182 + 256 = 438. */
     /* обводка цифр скорости: 8 красных копий со сдвигом, под основной надписью */
     {
         static const int8_t off[8][2] = { {-3,0},{3,0},{0,-3},{0,3},{-2,-2},{2,-2},{-2,2},{2,2} };
@@ -2242,8 +2231,8 @@ void build_hud_mockup(void)
             lv_obj_set_style_text_color(o, lv_color_hex(C_OVERSPEED), 0);
             lv_obj_set_style_text_align(o, LV_TEXT_ALIGN_RIGHT, 0);
             lv_label_set_long_mode(o, LV_LABEL_LONG_CLIP);
-            lv_obj_set_width(o, 256);
-            lv_obj_set_pos(o, 376 + off[i][0], 20 + off[i][1]);
+            lv_obj_set_width(o, SPEED_W);
+            lv_obj_set_pos(o, SPEED_X + off[i][0], 20 + off[i][1]);
             lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
             spd_outline[i] = o;
         }
@@ -2255,8 +2244,8 @@ void build_hud_mockup(void)
     lv_obj_set_style_text_color(speed_lbl, lv_color_white(), 0);
     lv_obj_set_style_text_align(speed_lbl, LV_TEXT_ALIGN_RIGHT, 0);
     lv_label_set_long_mode(speed_lbl, LV_LABEL_LONG_CLIP);
-    lv_obj_set_width(speed_lbl, 256);
-    lv_obj_set_pos(speed_lbl, 376, 20);
+    lv_obj_set_width(speed_lbl, SPEED_W);
+    lv_obj_set_pos(speed_lbl, SPEED_X, 20);
     lv_obj_add_flag(speed_lbl, LV_OBJ_FLAG_HIDDEN);
 
     /* Режим КП — над скоростью, серым, правый край по цифрам скорости
@@ -2267,18 +2256,18 @@ void build_hud_mockup(void)
     lv_obj_set_style_text_color(gear_lbl, lv_color_hex(C_LABEL_GRAY), 0);
     lv_obj_set_style_text_align(gear_lbl, LV_TEXT_ALIGN_RIGHT, 0);
     lv_obj_set_width(gear_lbl, 250);
-    lv_obj_set_pos(gear_lbl, 376, 1);
+    lv_obj_set_pos(gear_lbl, SPEED_X + 6, 1);
     lv_obj_add_flag(gear_lbl, LV_OBJ_FLAG_HIDDEN);
 
     /* Сколько заправить до полного — над зоной скорости слева, на одной линии
        с режимом КП: маленькая колонка АЗС + «13 л» / «3.4 gal», серым */
-    tank_icon = car_img(scr, &img_fuel_icon, 376, 2, C_LABEL_GRAY);
+    tank_icon = car_img(scr, &img_fuel_icon, SPEED_X, 2, C_LABEL_GRAY);
     lv_obj_add_flag(tank_icon, LV_OBJ_FLAG_HIDDEN);
     tank_lbl = lv_label_create(scr);
     lv_label_set_text(tank_lbl, "");
     lv_obj_set_style_text_font(tank_lbl, &hud_font_fuel, 0);
     lv_obj_set_style_text_color(tank_lbl, lv_color_hex(C_LABEL_GRAY), 0);
-    lv_obj_set_pos(tank_lbl, 376 + 15 + 5, 1);                 /* базовая линия — как у режима КП */
+    lv_obj_set_pos(tank_lbl, SPEED_X + 20, 1);                 /* базовая линия — как у режима КП */
     lv_obj_add_flag(tank_lbl, LV_OBJ_FLAG_HIDDEN);
 
     acc_dot = car_img(scr, &img_acc_set, RX + 4, 145, C_GREEN);
@@ -2296,17 +2285,8 @@ void build_hud_mockup(void)
     lv_obj_add_flag(lim_icon, LV_OBJ_FLAG_HIDDEN);
 
     /* Режим пробки — справа от скорости ACC */
-    jam_icon = car_img(scr, &img_traffic_jam, RX + 102, 148, C_GREEN);
+    jam_icon = car_img(scr, &img_traffic_jam, RX + 82, 148, C_GREEN);
     lv_obj_add_flag(jam_icon, LV_OBJ_FLAG_HIDDEN);
-
-    /* подпись единиц: выравнивание вправо, правый край 621 (как у прежней "km/h") */
-    kmh_lbl = lv_label_create(scr);
-    lv_label_set_text(kmh_lbl, "");
-    lv_obj_set_width(kmh_lbl, 125);
-    lv_obj_set_style_text_align(kmh_lbl, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_obj_set_style_text_font(kmh_lbl, &hud_font_kmh, 0);
-    lv_obj_set_style_text_color(kmh_lbl, lv_color_hex(C_LABEL_GRAY), 0);
-    lv_obj_set_pos(kmh_lbl, 621 - 125, 133);
 
 
 #if HUD_TOUCH_ENABLE
