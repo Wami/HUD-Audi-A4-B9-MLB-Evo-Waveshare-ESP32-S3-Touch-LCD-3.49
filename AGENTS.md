@@ -6,10 +6,11 @@ It only listens to the car CAN bus via a BLE sniffer/gateway or its onboard TWAI
 **Never add CAN transmission** — the design is passive (TWAI `LISTEN_ONLY`, transceiver silent).
 
 ## Build and flash
-- No CMake, PlatformIO, package.json, CI, or host test suite. The real build is the Arduino IDE.
+- No CMake, PlatformIO, package.json, CI, or host test suite. The real build is the Arduino IDE (GUI); `arduino-cli` is not installed — do not try to compile the sketch from the shell. Only pure-C modules are host-testable (see `cam_replay` below).
 - Open `waveshare_hud_mockup/waveshare_hud_mockup.ino`; serial monitor at 115200.
-- Libraries: LVGL 8.x (8.4.0 tested), NimBLE-Arduino 2.x (1.x callbacks differ), Waveshare SensorLib/BSP.
+- Toolchain on this machine: arduino-esp32 core 3.3.10; libraries in `~/Arduino/libraries` — LVGL 8.4.x, NimBLE-Arduino 2.5.2 (1.x callbacks differ), RTClib, Adafruit_BusIO.
 - Partition scheme: `16M Flash (3MB APP/9.9MB FATFS)`. PSRAM: OPI — LVGL draw buffers and optional data files live there.
+- BLE limits are baked into the core, not the sketch: `CONFIG_BT_NIMBLE_MAX_CONNECTIONS=3` (verified in `esp32s3-libs/3.3.10/qio_*/include/sdkconfig.h`), all four roles enabled. NimBLE-Arduino 2.5.2 has no `setMaxConnections()` API. Central (CAN sniffer) and GATT peripheral can connect simultaneously within that budget.
 - `lv_conf.h` goes beside the `lvgl` library folder, not inside it. `LV_USE_FONT_COMPRESSED 1` is mandatory or generated fonts silently render nothing.
 - `secrets.h` is gitignored. Copy `secrets.example.h`; never commit real keys.
 
@@ -20,6 +21,7 @@ It only listens to the car CAN bus via a BLE sniffer/gateway or its onboard TWAI
 - **Never call LVGL outside its timers** (`hud_update_cb`, `anim_timer_cb`, menu/OTA timers). CAN/BLE/audio run on other tasks and cores; direct LVGL calls race.
 - `.c` files are C, `.cpp`/`.ino` are C++. Headers shared by both need `extern "C"` guards (see `hud_data.h`).
 - Platform differences use `#if HUD_PLATFORM == HUD_PLATFORM_MQB`. MQB lacks several MLB frames (ACC_12/14, 0x64F wheel, pre-sense), so check both paths when changing decoding.
+- A BLE navigation channel from an Android phone (GATT server, parallel to `HUD_DATA_SOURCE`, data takes priority over BAP) is specified and agreed in `docs/phone_protocol_agreement.md` but not yet implemented. Don't invent a different protocol or transport; the decoder is planned as pure C host-tested like `cam_alert.c`.
 
 ## Configuration traps
 - `waveshare_hud_mockup/hud_config.h` is the source of truth. The README "Default" tables and comments have been out of sync with the actual defines (data source and `HUD_PLATFORM` have differed); verify before assuming.
