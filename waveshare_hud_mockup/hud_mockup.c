@@ -84,12 +84,14 @@ extern "C" {
    ACC/LKA: видимый значок внизу контейнера 64x114; сверху запас 60 px
    под ход машинки впереди по дистанции (MQB, ACC_Abstandsindex). */
 #define ACC_PAD      60
-/* MQB: положение машинки впереди по ACC_Abstandsindex (дистанция ×0.1 м).
-   Шкала перспективная (1/d): 10 м — внизу, 100 м — вверху (ход 0..ACC_PAD). */
-#define ACC_LEAD_NEAR_DM 100      /* 10.0 м — у своей машины               */
-#define ACC_LEAD_FAR_DM  1000     /* 100 м — верх блока                    */
-#define ACC_LEAD_SLEW_PX 4        /* плавно: до 4 px за тик 50 мс          */
-#define ACC_LEAD_JUMP_DM 50       /* скачок > 5 м за тик — новая цель      */
+/* MQB: положение машинки впереди по ACC_Abstandsindex — условные единицы
+   (не метры!): меньше = ближе. Шкала выпуклая (степенная), откалибрована
+   по точкам: 20 -> 0 px, 500 -> 15 px, 1021 -> ACC_PAD px. */
+#define ACC_LEAD_MIN_IDX  20      /* нижняя граница шкалы (условные ед.)   */
+#define ACC_LEAD_MAX_IDX  1021    /* верхняя граница шкалы                 */
+#define ACC_LEAD_CURVE_P  1.8862f /* степень: 20->0, 500->15, 1021->60      */
+#define ACC_LEAD_SLEW_PX  4       /* плавно: до 4 px за тик 50 мс          */
+#define ACC_LEAD_JUMP_IDX 50      /* скачок > 50 ед. за тик — новая цель   */
 #define SPEED_X      182   /* левый край блока скорости (3 цифры: 194..438) */
 #define SPEED_W      256
 #define NAV_X        448   /* левый край области навигации 192 px            */
@@ -940,32 +942,37 @@ static void hud_update_cb(lv_timer_t *t)
 #endif
 
 #if HUD_PLATFORM == HUD_PLATFORM_MQB
-    /* Машинку впереди двигаем по измеренной дистанции ACC_Abstandsindex.
+    /* Машинку впереди двигаем по условному индексу ACC_Abstandsindex.
+       Шкала выпуклая (степенная): 20 -> 0 px, 500 -> 15 px, 1021 -> ACC_PAD.
        Мелкий дребезг (±1 px) не отрабатываем, плавные изменения — по 1..4 px
-       за тик; новая цель (скачок > 5 м за тик или появление/пропадание)
-       ставится сразу. Без валидной дистанции машинка не показывается
+       за тик; новая цель (скачок > 50 ед. за тик или появление/пропадание)
+       ставится сразу. Без валидного индекса машинка не показывается
        (кроме предупреждения acc_object == 2). */
     {
         static int      lead_travel;   /* текущий подъём машинки, 0..ACC_PAD */
-        static uint16_t lead_prev_dm;  /* предыдущий ACC_Abstandsindex       */
+        static uint16_t lead_prev_idx; /* предыдущий ACC_Abstandsindex       */
 
         uint16_t dnow   = abstand_lead ? d.acc_abstand : 0;
         int      target = 0;
 
         if (abstand_lead) {
-            int dm = dnow;
-            if (dm < ACC_LEAD_NEAR_DM) dm = ACC_LEAD_NEAR_DM;
-            if (dm > ACC_LEAD_FAR_DM)  dm = ACC_LEAD_FAR_DM;
-            /* перспектива 1/d: 10 м -> 0 px, 100 м -> 60 px */
-            target = (ACC_PAD * (dm - ACC_LEAD_NEAR_DM) * ACC_LEAD_FAR_DM) /
-                     (dm * (ACC_LEAD_FAR_DM - ACC_LEAD_NEAR_DM));
+            int r = dnow;
+            if (r < ACC_LEAD_MIN_IDX) r = ACC_LEAD_MIN_IDX;
+            if (r > ACC_LEAD_MAX_IDX) r = ACC_LEAD_MAX_IDX;
+            if (r > ACC_LEAD_MIN_IDX) {
+                float x = (float)(r - ACC_LEAD_MIN_IDX) /
+                          (ACC_LEAD_MAX_IDX - ACC_LEAD_MIN_IDX);
+                /* x^P через уже используемые log10f/expf: ln(x) = log10(x)*ln(10) */
+                float t = expf(ACC_LEAD_CURVE_P * 2.302585f * log10f(x));
+                target = (int)(t * ACC_PAD + 0.5f);
+            }
             if (target < 0)       target = 0;
             if (target > ACC_PAD) target = ACC_PAD;
         }
 
-        int dd = (int)dnow - (int)lead_prev_dm;
+        int dd = (int)dnow - (int)lead_prev_idx;
         if (dd < 0) dd = -dd;
-        bool jump = (dnow == 0) || (lead_prev_dm == 0) || (dd > ACC_LEAD_JUMP_DM);
+        bool jump = (dnow == 0) || (lead_prev_idx == 0) || (dd > ACC_LEAD_JUMP_IDX);
 
         if (jump) {
             lead_travel = target;                 /* новая цель — сразу */
@@ -982,7 +989,7 @@ static void hud_update_cb(lv_timer_t *t)
 
         int y = ASSIST_FRONT_Y + ACC_PAD - lead_travel;
         if (lv_obj_get_y(as_front) != y) lv_obj_set_y(as_front, y);
-        lead_prev_dm = dnow;
+        lead_prev_idx = dnow;
     }
 #endif
 
