@@ -925,16 +925,16 @@ static void hud_update_cb(lv_timer_t *t)
     bool obj_warn = (d.valid & V_ACC) && d.acc_object == 2;
 
  #if HUD_PLATFORM == HUD_PLATFORM_MQB
-    /* MQB: помимо ACC_Relevantes_Objekt_02, машина впереди определяется по ACC_Abstandsindex:
+    /* MQB: машина впереди определяется только по ACC_Abstandsindex:
        0 и 1022 = «серая дорога» (Sonderanzeige_graue_Fahrbahn) — цели нет,
        1023 — служебное значение, цели нет,
        1..1021 = реальный индекс дистанции — цель есть.
-       В логах Relevantes_Objekt часто = 0 даже когда впереди есть машина, а Abstandsindex
-       при этом > 0 (пример: Abstandsindex = 972 при Relevantes_Objekt = 0).
        Цель показывается независимо от статуса ACC — достаточно свежих данных V_ACC.
-       acc_object оставлен как fallback: в имеющихся логах MQB он всегда 0. */
+       ACC_Relevantes_Objekt_02 == 1 для наличия цели не используется: в логах
+       он почти всегда 1 и не различает наличие машины.
+       == 2 остаётся отдельным признаком предупреждения. */
     bool abstand_lead = (d.valid & V_ACC) && d.acc_abstand != 0 && d.acc_abstand != 1022 && d.acc_abstand != 1023;
-    bool obj          = obj_warn || ((d.valid & V_ACC) && d.acc_object == 1) || abstand_lead;
+    bool obj          = obj_warn || abstand_lead;
 #else
     bool obj          = obj_warn || (acc_on && d.acc_object == 1);
 #endif
@@ -943,8 +943,8 @@ static void hud_update_cb(lv_timer_t *t)
     /* Машинку впереди двигаем по измеренной дистанции ACC_Abstandsindex.
        Мелкий дребезг (±1 px) не отрабатываем, плавные изменения — по 1..4 px
        за тик; новая цель (скачок > 5 м за тик или появление/пропадание)
-       ставится сразу. Без валидной дистанции (fallback по acc_object) —
-       нижнее положение, как раньше. */
+       ставится сразу. Без валидной дистанции машинка не показывается
+       (кроме предупреждения acc_object == 2). */
     {
         static int      lead_travel;   /* текущий подъём машинки, 0..ACC_PAD */
         static uint16_t lead_prev_dm;  /* предыдущий ACC_Abstandsindex       */

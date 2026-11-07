@@ -778,7 +778,7 @@ The generator scripts in `tools/` write straight into `waveshare_hud_mockup/`.
 |---|---|---|---|
 | ACC active | 0x2A8, 16\|3 | 0x2A7, bit 58 (1 → active, 0 → standby) | ⚠️ from engagement intervals in the logs |
 | ACC set speed | 0x2A6, 12\|10, ×0.32 km/h | 0x30C (ACC_02), 16\|6: 5 × value + 5 km/h, 63 = not set (kept while ACC is inactive) | ✅ |
-| Lead vehicle | 0x2A6, 45\|2 | 0x30C, 45\|2 | ⚠️ same layout as the A4, not verified on a real series |
+| Lead vehicle | 0x2A6, 45\|2 | 0x30C, 45\|2 — warning only (2); target presence from `ACC_Abstandsindex` | ⚠️ same layout as the A4, not verified on a real series |
 | Distance to target | — | 0x30C, 24\|10: `ACC_Abstandsindex`, ×0.1 m (0/1022/1023 = no target); sets the lead car's vertical position (10 m at the bottom, 100 m at the top) | ✅ |
 | ACC time gap | 0x2A6, 37\|3 | 0x30C, 37\|3 | ⚠️ constantly 1 in the logs |
 | Pre sense (ACC_15) | 0x2A9 | not on the bus | disabled |
