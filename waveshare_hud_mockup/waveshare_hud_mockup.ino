@@ -21,6 +21,7 @@
 #include "hud_ota.h"
 #include "hud_cams.h"
 #include "hud_config.h"
+#include "ble_nav_server.h"
 
 void lvgl_log_cb(const char *buf)
 {
@@ -55,6 +56,9 @@ void setup()
   hud_ota_start_button();           /* удержание BOOT -> режим обновления */
 
   hud_cams_start();                 /* база камер из флеша (FATFS) в PSRAM, фоновая задача */
+#if HUD_NAV_SERVER_ENABLE
+  nav_server_start();               /* GATT-сервер телефона: независимо от источника CAN */
+#endif
   hud_source_start();               /* источник кадров: BLE / TWAI / генератор */
 }
 

@@ -23,6 +23,8 @@ typedef struct {
     int8_t   src;                 /* -1 нет связи, 0 BLE, 1 CAN */
     uint8_t  db_status;           /* DB_* */
     uint8_t  cams_on, cam_beep;
+    uint8_t  cam_src;             /* источник камер: 0 база, 1 телефон, 2 оба */
+    uint8_t  nav_connected;       /* телефонный BLE-канал был подключён */
     uint32_t db_n, db_date;
     /* проверка условий показа камеры (каждый тик обновления экрана); причины взаимоисключающие, по порядку */
     uint32_t ticks;
@@ -33,9 +35,13 @@ typedef struct {
     uint32_t last_idx; uint16_t last_lim, last_dist_m, last_spd;
     int32_t  lat_e6, lon_e6;      /* последняя позиция, когда условия выполнялись */
     uint16_t max_spd;
+    /* телефонный канал навигации (nav_proto) */
+    uint32_t nav_snapshots, nav_positions;
+    uint32_t nav_crc, nav_unknown, nav_bad_len;
+    uint32_t nav_groups[12];      /* принятые группы по id (G0..G10) */
 } hud_diag_t;
 
-#define HUD_DIAG_VER 1
+#define HUD_DIAG_VER 3
 
 extern hud_diag_t g_diag;         /* счётчики текущего сеанса (пишет hud_mockup.c, hud_cams.cpp) */
 

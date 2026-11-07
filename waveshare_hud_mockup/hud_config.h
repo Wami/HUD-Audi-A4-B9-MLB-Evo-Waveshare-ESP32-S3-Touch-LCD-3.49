@@ -38,6 +38,10 @@
 #define HUD_DATA_SOURCE      HUD_SRC_BLE
 #define HUD_AUTO_CAN_HOLD_MS 1000   /* AUTO: столько без кадров по CAN — переходим на BLE */
 
+/* GATT-сервер для телефонного канала навигации (protocol/spec.md v1).
+   1 — всегда поднимать, независимо от HUD_DATA_SOURCE; 0 — не поднимать. */
+#define HUD_NAV_SERVER_ENABLE 1
+
 /* BLE-защита: код доступа задаётся в secrets.h (шаблон secrets.example.h).
    Столько неудач сопряжения подряд — на экране подсказка «сопряжение не принято» */
 #define HUD_BLE_PAIR_MSG_AFTER 3
@@ -228,6 +232,7 @@
 #define HUD_CAM_MAX_HDOP_X10      40     /* HDOP хуже 4.0 — позиции не верим                   */
 #define HUD_CAM_BEEP              1      /* один сигнал при появлении камеры, если скорость выше её лимита
                                             (при первом запуске; дальше — кнопка «Сигнал камер») */
+#define HUD_CAM_SRC               0      /* источник камер: 0 своя база cams.bin, 1 телефон (G6), 2 оба */
 #define HUD_CAM_OVERSPEED_M       250    /* ближе — лимит камеры участвует в красной обводке скорости */
 #if HUD_PSD_DIAG && HUD_CAMS
 #undef  HUD_CAMS

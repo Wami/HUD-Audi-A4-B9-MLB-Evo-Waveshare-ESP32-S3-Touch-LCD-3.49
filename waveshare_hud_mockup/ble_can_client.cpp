@@ -211,7 +211,7 @@ static bool secure_channel(NimBLEClient *c)
 
 static void ble_task(void *)
 {
-    NimBLEDevice::init("HUD-3.49");
+    if (!NimBLEDevice::isInitialized()) NimBLEDevice::init("HUD-3.49");
 #if BLE_PASSKEY
     NimBLEDevice::setSecurityAuth(true, true, true);              /* bonding, MITM, Secure Connections */
     NimBLEDevice::setSecurityIOCap(BLE_HS_IO_KEYBOARD_ONLY);      /* «ввожу код» */

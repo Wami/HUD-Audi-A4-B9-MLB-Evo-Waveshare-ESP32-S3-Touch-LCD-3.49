@@ -40,6 +40,7 @@
 #include "hud_diag.h"
 #include "hud_cams.h"
 #include "hud_anim.h"
+#include "nav_bridge.h"
 #include "src/lcd_bl_bsp/lcd_bl_pwm_bsp.h"
 
 /* Шрифты: Montserrat Bold (SIL OFL 1.1) с табличными цифрами — см. tools/fonts/ */
@@ -239,6 +240,8 @@ static SignItem vze_eval(uint8_t code, bool suppress, uint8_t tl, bool allow_fal
 static bool g_cam_active;                 /* камера сейчас показана: диагностика уступает место */
 static volatile uint8_t g_units, g_tol;   /* определены ниже (tentative definition) */
 static volatile bool g_cams_on, g_cam_beep;
+static volatile uint8_t g_cam_src;
+#define PHONE_CAM_ID 0xFFFFFFFEu   /* synthetic id for the phone G6 camera stream */
 #if HUD_CAMS
 static lv_obj_t *car_img(lv_obj_t *parent, const lv_img_dsc_t *src, int x, int y, uint32_t col);
 static volatile uint8_t g_lang;   /* определён ниже */
@@ -286,40 +289,80 @@ static void cams_build(lv_obj_t *scr)
 static bool cams_update(uint32_t now, const HudData *d, uint16_t *lim_for_speed)
 {
     static uint32_t beeped = 0xFFFFFFFFu;
-    cam_hit_t h; bool hit = false;
+    cam_hit_t h = {0}; bool hit = false;
     g_diag.ticks++;
     if (d->valid & V_SPEED) { if (d->speed_kmh > g_diag.max_spd) g_diag.max_spd = d->speed_kmh; }
+
+    bool local_enabled = g_cams_on && (g_cam_src == 0 || g_cam_src == 2);
     bool gate = false;
-    if (!g_cams_on)                          g_diag.no_cams_on++;
-    else if (!hud_cams_ready())              g_diag.no_db++;
-    else if (!(d->valid & V_GPS))            g_diag.no_gps++;
-    else if (!(d->valid & V_HDG))            g_diag.no_hdg++;
-    else if (!(d->valid & V_SPEED))          g_diag.no_spd++;
-    else if (d->gps_fix != 3)                g_diag.no_fix++;
-    else if (d->gps_sat < 4)                 g_diag.no_sat++;
-    else if (d->gps_hdop_x10 > HUD_CAM_MAX_HDOP_X10) g_diag.no_hdop++;
-    else if (d->gps_hdg_x10 == 0xFFFF)       g_diag.no_hdg_val++;
-    else if (d->speed_kmh < HUD_CAM_MIN_SPEED_KMH)   g_diag.too_slow++;
-    else gate = true;
+    if (!g_cams_on) g_diag.no_cams_on++;
+    else if (local_enabled) {
+        if (!hud_cams_ready())              g_diag.no_db++;
+        else if (!(d->valid & V_GPS))       g_diag.no_gps++;
+        else if (!(d->valid & V_HDG))       g_diag.no_hdg++;
+        else if (!(d->valid & V_SPEED))     g_diag.no_spd++;
+        else if (d->gps_fix != 3)           g_diag.no_fix++;
+        else if (d->gps_sat < 4)            g_diag.no_sat++;
+        else if (d->gps_hdop_x10 > HUD_CAM_MAX_HDOP_X10) g_diag.no_hdop++;
+        else if (d->gps_hdg_x10 == 0xFFFF)  g_diag.no_hdg_val++;
+        else if (d->speed_kmh < HUD_CAM_MIN_SPEED_KMH)   g_diag.too_slow++;
+        else gate = true;
+    }
+
+    cam_hit_t local_h = {0}; bool local_hit = false;
     if (gate) {
         g_diag.q_run++; g_diag.lat_e6 = d->gps_lat_e6; g_diag.lon_e6 = d->gps_lon_e6;
-        hit = cam_query(now, d->gps_lat_e6 / 1e6, d->gps_lon_e6 / 1e6, d->gps_hdg_x10 / 10.0f, (float)d->speed_kmh, &h);
-        if (hit) g_diag.q_hit++;
+        local_hit = cam_query(now, d->gps_lat_e6 / 1e6, d->gps_lon_e6 / 1e6, d->gps_hdg_x10 / 10.0f, (float)d->speed_kmh, &local_h);
+        if (local_hit) g_diag.q_hit++;
+    }
+
+    /* Диагностика гейта локальной базы: раз в 2 с видно, чего не хватает. */
+    static uint32_t s_gate_log_ms = 0;
+    if (local_enabled && (now - s_gate_log_ms) >= 2000u) {
+        s_gate_log_ms = now;
+        arduino_printf("[cam] src=%u db=%d gps=%d hdg=%d spd=%d fix=%u sat=%u hdop=%u hv=%u v=%u gate=%d run=%lu hit=%lu\n",
+                       (unsigned)g_cam_src, (int)hud_cams_ready(),
+                       (d->valid & V_GPS) ? 1 : 0, (d->valid & V_HDG) ? 1 : 0,
+                       (d->valid & V_SPEED) ? 1 : 0, (unsigned)d->gps_fix, (unsigned)d->gps_sat,
+                       (unsigned)d->gps_hdop_x10, (unsigned)d->gps_hdg_x10,
+                       (unsigned)d->speed_kmh, gate ? 1 : 0,
+                       (unsigned long)g_diag.q_run, (unsigned long)g_diag.q_hit);
     }
     /* Условия допуска на миг не выполнились (курс/HDOP/скорость/GNSS мигнули) — камеру не гасим сразу,
        иначе на её месте на мгновение вспыхивает обычный знак (VZE/PSD). Если запрос шёл и камеры нет — это настоящий конец. */
     static cam_hit_t s_h_last; static uint32_t s_t_last = 0; static bool s_was = false;
-    if (hit)                      { s_h_last = h; s_t_last = now; s_was = true; }
-    else if (!gate && g_cams_on && s_was && (now - s_t_last) <= 1500) {
-        float left = s_h_last.dist_m - d->speed_kmh / 3.6f * (now - s_t_last) / 1000.0f;   /* расстояние продолжает уменьшаться */
-        if (left > 0) { h = s_h_last; h.dist_m = left; hit = true; } else s_was = false;
+    if (local_enabled) {
+        if (local_hit) { s_h_last = local_h; s_t_last = now; s_was = true; }
+        else if (!gate && g_cams_on && s_was && (now - s_t_last) <= 1500) {
+            float left = s_h_last.dist_m - d->speed_kmh / 3.6f * (now - s_t_last) / 1000.0f;   /* расстояние продолжает уменьшаться */
+            if (left > 0) { local_h = s_h_last; local_h.dist_m = left; local_hit = true; } else s_was = false;
+        }
+        else s_was = false;
+    } else s_was = false;
+
+    /* Телефонная камера G6: только расстояние, без лимита и направления. */
+    cam_hit_t phone_h = {0}; bool phone_hit = false;
+    float phone_dist = 0;
+    if (g_cams_on && (g_cam_src == 1 || g_cam_src == 2) &&
+        nav_bridge_camera(&phone_dist) && phone_dist > 0) {
+        phone_h.dist_m = phone_dist;
+        phone_h.idx = PHONE_CAM_ID;
+        phone_h.dir_deg = 0xFFFF;
+        phone_hit = true;
     }
-    else                          s_was = false;
+
+    if (g_cams_on) {
+        if (g_cam_src == 1) { hit = phone_hit; h = phone_h; }
+        else if (g_cam_src == 2) {
+            if (phone_hit && (!local_hit || phone_h.dist_m < local_h.dist_m)) { hit = true; h = phone_h; }
+            else { hit = local_hit; h = local_h; }
+        } else { hit = local_hit; h = local_h; }
+    }
 
     g_cam_active = hit;
     vis(cm_sq, hit); vis(cm_dist, hit); vis(cm_eye, hit);
     if (hit) vis(sign_obj, false);                      /* знак камеры приоритетнее обычного знака */
-    if (!hit) return false;
+    if (!hit) { beeped = 0xFFFFFFFFu; return false; }
 
     char b[16];
     if (g_units == HUD_UNITS_MI) snprintf(b, sizeof b, "%dft", (int)(h.dist_m * 3.281f / 50) * 50);
@@ -511,10 +554,13 @@ void    hud_set_tank(uint8_t l)      { g_tank = l < 30 ? 30 : l > 90 ? 90 : l; }
 uint8_t hud_get_tank(void)           { return g_tank; }
 static volatile bool    g_cams_on  = HUD_CAMS_ON;         /* камеры: показ */
 static volatile bool    g_cam_beep = HUD_CAM_BEEP;        /* камеры: сигнал */
+static volatile uint8_t g_cam_src  = HUD_CAM_SRC;         /* камеры: 0 база, 1 телефон, 2 оба */
 void    hud_set_cams(bool on)        { g_cams_on = on; }
 bool    hud_get_cams(void)           { return g_cams_on; }
 void    hud_set_cam_beep(bool on)    { g_cam_beep = on; }
 bool    hud_get_cam_beep(void)       { return g_cam_beep; }
+void    hud_set_cam_src(uint8_t src) { g_cam_src = src > 2 ? 0 : src; }
+uint8_t hud_get_cam_src(void)        { return g_cam_src; }
 static volatile bool    g_anim_on = HUD_ANIM_ON;          /* анимированные стрелки: показ (нужен /arrows.bin) */
 void    hud_set_anim(bool on)        { g_anim_on = on; }
 bool    hud_get_anim(void)           { return g_anim_on; }
@@ -753,6 +799,7 @@ static void hud_update_cb(lv_timer_t *t)
     HudData d;
     hud_data_snapshot(&d);
     uint32_t now = hud_now_ms();
+    nav_bridge_apply(&d, now);
     char buf[32];
     (void)now;
     uint16_t lim_kmh_for_speed = 0;
@@ -1076,9 +1123,12 @@ static void hud_update_cb(lv_timer_t *t)
         bool sv = g_vze && (d.valid & V_SIGN);              /* знаки VZE выключены в меню — не смотрим */
 
         SignItem main = { SIGN_HIDE, 0, 0 };
-        if (psd_expl)                                        { main.mode = SIGN_LIMIT; main.val = pe_kmh; main.src = 2; }
-        if (main.mode == SIGN_HIDE && sv)                    main = vze_eval(d.sign_raw, d.sign_suppress, tl, true);
-        if (main.mode == SIGN_HIDE && (P.src == PSD_LIM_LEGAL || P.src == PSD_LIM_ENDED))
+        uint16_t phone_kph = 0;
+        bool phone_lim = nav_bridge_speed_limit(&phone_kph);
+        if (phone_lim)                                       { main.mode = SIGN_LIMIT; main.val = phone_kph; main.src = 0; }
+        else if (psd_expl)                                   { main.mode = SIGN_LIMIT; main.val = pe_kmh; main.src = 2; }
+        else if (sv)                                         main = vze_eval(d.sign_raw, d.sign_suppress, tl, true);
+        else if (P.src == PSD_LIM_LEGAL || P.src == PSD_LIM_ENDED)
                                                              { main.mode = SIGN_LIMIT; main.val = P.kmh; main.src = 2; }
         if (main.mode != SIGN_HIDE) items[n_items++] = main;
 
@@ -1088,8 +1138,8 @@ static void hud_update_cb(lv_timer_t *t)
             if (x2.mode == SIGN_LIMIT && x2.val != main.val) items[n_items++] = x2;
             if (x3.mode == SIGN_LIMIT && x3.val != main.val && x3.val != x2.val) items[n_items++] = x3;
         }
-        if ((psd_expl && pe_novt) || (sv && (vze_eval(d.sign_raw2, d.sign_sup2, 0, false).mode == SIGN_NOOVT ||
-                                             vze_eval(d.sign_raw3, d.sign_sup3, 0, false).mode == SIGN_NOOVT)))
+        if (!phone_lim && ((psd_expl && pe_novt) || (sv && (vze_eval(d.sign_raw2, d.sign_sup2, 0, false).mode == SIGN_NOOVT ||
+                                             vze_eval(d.sign_raw3, d.sign_sup3, 0, false).mode == SIGN_NOOVT))))
             if (n_items < 4) items[n_items++] = (SignItem){ SIGN_NOOVT, 0, (psd_expl && pe_novt) ? 2 : 1 };
 
         /* ограничение для контроля превышения — всегда основной знак */
@@ -1529,7 +1579,13 @@ static void menu_refresh(void)
     lv_label_set_text(menu_btn_lbl[B_VZE], en ? "Road\nsigns" : "Знаки на\nдороге");
     lv_label_set_text(menu_btn_lbl[B_PSD], en ? "Speed limit\non the road" : "Ограничение\nна дороге");
     lv_label_set_text(menu_btn_lbl[B_ACCEL], en ? "Accel" : "Разгон");
-    lv_label_set_text(menu_btn_lbl[B_CAM],   en ? "Cameras" : "Камеры");
+    {
+        const char *src = !g_cams_on ? (en ? "off" : "выкл") :
+                          g_cam_src == 1 ? (en ? "phone" : "тел.") :
+                          g_cam_src == 2 ? (en ? "both" : "оба") : (en ? "db" : "база");
+        snprintf(buf, sizeof buf, "%s\n%s", en ? "Cameras" : "Камеры", src);
+        lv_label_set_text(menu_btn_lbl[B_CAM], buf);
+    }
     lv_label_set_text(menu_btn_lbl[B_CBEEP], en ? "Camera\nalert" : "Сигнал\nкамер");
     snprintf(buf, sizeof buf, "%s\n%s", en ? "Fuel" : "Расход",
              g_fmode == 0 ? (en ? "Instant" : "Мгнов.") : g_fmode == 1 ? (en ? "Average" : "Средний") : (en ? "Off" : "Выкл"));
@@ -1737,7 +1793,12 @@ static void menu_btn_cb(lv_event_t *e)
     case B_VZE:     hud_set_vze(!g_vze); break;
     case B_PSD:     hud_set_psd(!g_psd); break;
     case B_ACCEL:   hud_set_accel_bar(!g_accel); break;
-    case B_CAM:     hud_set_cams(!g_cams_on); break;
+    case B_CAM:
+        if (!g_cams_on) { hud_set_cams(true); hud_set_cam_src(0); }   /* off -> база -> телефон -> оба -> off */
+        else if (g_cam_src == 0) hud_set_cam_src(1);
+        else if (g_cam_src == 1) hud_set_cam_src(2);
+        else hud_set_cams(false);
+        break;
     case B_CBEEP:   hud_set_cam_beep(!g_cam_beep); break;
     case B_ANIM:    hud_set_anim(!g_anim_on); break;
     case B_SND:     menu_last_touch = hud_now_ms(); ov_open(0); return;

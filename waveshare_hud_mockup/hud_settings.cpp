@@ -19,7 +19,7 @@ void hud_settings_load(void)
         hud_set_lang(HUD_LANG); hud_set_units(HUD_UNITS);
         hud_set_psd(HUD_PSD_LIMITS); hud_set_vze(HUD_VZE_SIGNS); hud_set_accel_bar(HUD_ACCEL_BAR);
         hud_set_fuel_avg(HUD_FUEL_AVG); hud_set_gallons(HUD_VOLUME_GAL);
-        hud_set_tank(HUD_TANK_L); hud_set_cams(HUD_CAMS_ON); hud_set_cam_beep(HUD_CAM_BEEP); hud_set_anim(HUD_ANIM_ON);
+        hud_set_tank(HUD_TANK_L); hud_set_cams(HUD_CAMS_ON); hud_set_cam_beep(HUD_CAM_BEEP); hud_set_cam_src(HUD_CAM_SRC); hud_set_anim(HUD_ANIM_ON);
         hud_sound_set_volume(HUD_SOUND_VOLUME); hud_set_overspeed_tol(HUD_OVERSPEED_TOL_KMH);
         hud_light_set_enabled(HUD_LDR_ON);
         return;
@@ -33,6 +33,7 @@ void hud_settings_load(void)
     hud_set_tank(p.getUChar("tank", HUD_TANK_L));
     hud_set_cams(p.getBool("cams", HUD_CAMS_ON));
     hud_set_cam_beep(p.getBool("cbeep", HUD_CAM_BEEP));
+    hud_set_cam_src(p.getUChar("camsrc", HUD_CAM_SRC));
     hud_set_anim(p.getBool("anim", HUD_ANIM_ON));
     hud_set_gallons(p.getBool("gal", HUD_VOLUME_GAL));
     hud_sound_set_volume(p.getUChar("vol", HUD_SOUND_VOLUME));
@@ -40,12 +41,14 @@ void hud_settings_load(void)
     hud_light_set_enabled(p.getBool("ldr", HUD_LDR_ON));
     hud_light_set_cal(p.getUShort("ldk", HUD_LDR_DARK_MV), p.getUShort("ldb", HUD_LDR_BRIGHT_MV));
     p.end();
-    arduino_printf("[set] язык %s, %s, знаки VZE %s / PSD %s, бар ускорения %s, расход %s, звук %u, допуск %u км/ч, датчик света %s\n",
+    arduino_printf("[set] язык %s, %s, знаки VZE %s / PSD %s, бар ускорения %s, расход %s, звук %u, допуск %u км/ч, датчик света %s, камеры %s/%s\n",
                    hud_get_lang() == HUD_LANG_EN ? "EN" : "RU",
                    hud_get_units() == HUD_UNITS_MI ? "мили" : "км",
                    hud_get_vze() ? "вкл" : "выкл", hud_get_psd() ? "вкл" : "выкл",
                    hud_get_accel_bar() ? "вкл" : "выкл", hud_get_fuel_mode() == 1 ? "средний" : hud_get_fuel_mode() == 0 ? "мгновенный" : "выкл",
-                   (unsigned)hud_sound_get_volume(), (unsigned)hud_get_overspeed_tol(), hud_light_enabled() ? "вкл" : "выкл");
+                   (unsigned)hud_sound_get_volume(), (unsigned)hud_get_overspeed_tol(), hud_light_enabled() ? "вкл" : "выкл",
+                   hud_get_cams() ? "вкл" : "выкл",
+                   hud_get_cam_src() == 0 ? "база" : hud_get_cam_src() == 1 ? "телефон" : "оба");
 }
 
 void hud_settings_save(void)
@@ -61,6 +64,7 @@ void hud_settings_save(void)
     p.putUChar("tank", hud_get_tank());
     p.putBool("cams", hud_get_cams());
     p.putBool("cbeep", hud_get_cam_beep());
+    p.putUChar("camsrc", hud_get_cam_src());
     p.putBool("anim", hud_get_anim());
     p.putBool("gal", hud_get_gallons());
     p.putUChar("vol", hud_sound_get_volume());

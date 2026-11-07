@@ -34,6 +34,8 @@ void    hud_set_anim(bool on);         /* анимированные стрел�
 bool    hud_get_anim(void);
 void    hud_set_cam_beep(bool on);     /* камеры: сигнал */
 bool    hud_get_cam_beep(void);
+void    hud_set_cam_src(uint8_t src);  /* камеры: 0 своя база, 1 телефон (G6), 2 оба */
+uint8_t hud_get_cam_src(void);
 void    hud_set_accel_bar(bool on);    /* бар ускорения вкл/выкл                        */
 bool    hud_get_accel_bar(void);
 

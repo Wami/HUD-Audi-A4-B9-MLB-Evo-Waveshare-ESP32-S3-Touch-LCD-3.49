@@ -243,6 +243,7 @@ static String diag_html()
     row("Источник / source", g.src == 1 ? "CAN" : g.src == 0 ? "BLE" : "нет связи / none");
     row("База камер / database", String(g.db_status < 6 ? DB[g.db_status] : "?") + (g.db_status == DB_OK ? String(", ") + String((unsigned)g.db_n) + " камер" : String("")));
     row("Показ / сигнал камер", String(g.cams_on ? "вкл" : "ВЫКЛ") + " / " + (g.cam_beep ? "вкл" : "выкл"));
+    row("Источник камер / camera source", g.cam_src == 1 ? "телефон" : g.cam_src == 2 ? "оба" : "база");
     row("Тиков проверки / ticks", String((unsigned)g.ticks));
     row("— показ выключен", String((unsigned)g.no_cams_on));
     row("— база не загружена", String((unsigned)g.no_db));
@@ -255,6 +256,17 @@ static String diag_html()
     if (g.shown) row("Последняя камера / last", "#" + String((unsigned)g.last_idx) + ", лимит " + String(g.last_lim) + ", с " + String(g.last_dist_m) + " м, v=" + String(g.last_spd));
     if (g.lat_e6 || g.lon_e6) row("Последняя позиция / last fix", String(g.lat_e6 / 1e6, 5) + ", " + String(g.lon_e6 / 1e6, 5));
     row("Макс. скорость / max speed", String(g.max_spd) + " км/ч");
+    row("Телефон / phone nav", g.nav_connected ? "подключался" : "нет");
+    row("— снимков / позиций", String((unsigned)g.nav_snapshots) + " / " + String((unsigned)g.nav_positions));
+    row("— CRC / неизв. TLV / длина", String((unsigned)g.nav_crc) + " / " + String((unsigned)g.nav_unknown) + " / " + String((unsigned)g.nav_bad_len));
+    {
+        String groups;
+        for (int i = 1; i <= 11; i++) {
+            if (i > 1) groups += " ";
+            groups += String((unsigned)g.nav_groups[i]);
+        }
+        row("— группы G0..G10", groups);
+    }
     row("Память / free", "RAM " + String((unsigned)(g.heap_free / 1024)) + " КБ, PSRAM " + String((unsigned)(g.psram_free / 1024)) + " КБ");
     s += "</table>";
     return s;
