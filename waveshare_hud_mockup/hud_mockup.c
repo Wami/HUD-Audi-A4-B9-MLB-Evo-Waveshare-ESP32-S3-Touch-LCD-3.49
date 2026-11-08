@@ -140,11 +140,12 @@ static lv_obj_t *acc_dot, *acc_speed_lbl;   /* acc_dot — значок уста
 /* Фоновое свечение поворотников: градиентная полоса 1/4 экрана от края */
 #define GLOW_W        160    /* ¼ экрана — мигающее свечение поворотника */
 #define GLOW_OPA      140    /* яркость большого свечения                 */
-#define GLOW_HINT_W   80     /* ⅛ экрана — ровная подсказка о помехе       */
-#define GLOW_HINT_OPA 100    /* бледнее, чтобы не отвлекать               */
+#define GLOW_SWA_W    220    /* Side Assist: warn — шире, ~⅓ экрана       */
+#define GLOW_SWA_OPA  200    /* Side Assist: warn — ярче поворотника      */
+#define GLOW_HINT_W   120    /* Side Assist: info — ровная подсказка      */
+#define GLOW_HINT_OPA 160    /* ярче прежней, но без мигания             */
 static lv_obj_t *glow_left, *glow_right;                     /* большие, мигают    */
 static lv_obj_t *glow_left_small, *glow_right_small;         /* маленькие, ровные  */
-static lv_obj_t *glow_left, *glow_right;
 
 static lv_obj_t *gear_lbl, *tank_icon, *tank_lbl;
 static lv_obj_t *car_box, *car_part[6], *car_under[6];   /* FL FR RL RR HOOD TRUNK — как биты DOOR_* */
@@ -1269,6 +1270,23 @@ static void hud_update_cb(lv_timer_t *t)
          фаза — от такта приборки (HUD_BLINK_FROM_TAKT=1) или 1000 мс (0);
        - иначе → скрыто. */
     bool swa_phase = (now % 500) < 250;
+
+    /* Side Assist на стороне → полоса шире и ярче (GLOW_SWA_*); поворотник — прежние GLOW_W/GLOW_OPA */
+    {
+        static bool l_swa, r_swa;
+        if (l_swa != warn_l) {
+            l_swa = warn_l;
+            lv_obj_set_width(glow_left, l_swa ? GLOW_SWA_W : GLOW_W);
+            lv_obj_set_style_bg_opa(glow_left, (lv_opa_t)(l_swa ? GLOW_SWA_OPA : GLOW_OPA), 0);
+        }
+        if (r_swa != warn_r) {
+            r_swa = warn_r;
+            int w = r_swa ? GLOW_SWA_W : GLOW_W;
+            lv_obj_set_width(glow_right, w);
+            lv_obj_set_x(glow_right, 640 - w);
+            lv_obj_set_style_bg_opa(glow_right, (lv_opa_t)(r_swa ? GLOW_SWA_OPA : GLOW_OPA), 0);
+        }
+    }
 
     bool big_show_l, big_show_r;
     uint32_t big_col_l, big_col_r;
