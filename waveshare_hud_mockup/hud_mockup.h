@@ -39,7 +39,7 @@ uint8_t hud_get_cam_src(void);
 void    hud_set_accel_bar(bool on);    /* бар ускорения вкл/выкл                        */
 bool    hud_get_accel_bar(void);
 
-void    hud_set_overspeed_tol(uint8_t kmh);   /* допуск превышения, км/ч, 0..20 */
+void    hud_set_overspeed_tol(uint8_t kmh);   /* допуск превышения, км/ч, 0..30 */
 uint8_t hud_get_overspeed_tol(void);
 
 /* hud_settings.cpp: загрузка/сохранение настроек во флеше (NVS) */

@@ -26,15 +26,16 @@ OUT = os.path.join(TOOLS, "..", "waveshare_hud_mockup")      # папка ске
 ARROW_W = 15                    # толщина стрелки
 HEAD_W, HEAD_L = 36, 22         # наконечник
 ROAD_W = 22                     # дорога-контекст
-ROAD_A = 70                     # яркость дороги (для маски стрелки не используется — дорога идёт отдельным слоем)
+ROAD_A = 20                     # яркость дороги (для маски стрелки не используется — дорога идёт отдельным слоем)
 ARROW_A = 255                   # яркость стрелки при рисовании (255 — слой стрелки; ROAD_FILL — слой дороги)
 SKIP = 1                        # значение-«не рисовать»: в слое дороги стрелка пропускается целиком
 CUT_A = 0                       # яркость «вырезов» формы стрелки (в слое дороги не вырезаем дорогу)
-SHADOW = 3                      # тень стрелки на дороге: смещение вниз, px
-SHADOW_K = 0.6                  # насколько тень затемняет дорогу (0..1)
+SHADOW = 4                      # тень стрелки на дороге: смещение вниз, px
+SHADOW_K = 0.8                  # насколько тень затемняет дорогу (0..1)
 ROAD_FILL = 70                 # слой дороги: заливка (серый на чёрном фоне HUD)
-ROAD_BORDER = 2                 # слой дороги: белая кайма, px
-CX, JY, BY = W / 2, 60, H - 4   # центр, перекрёсток, низ
+ROAD_BORDER = 3                 # слой дороги: кайма, px (0 — без каймы)
+ROAD_BORDER_A = 80             # слой дороги: яркость каймы 0..255 = её прозрачность (255 — белая, 0 — нет)
+CX, JY, BY = W / 2, 50, H - 4   # центр, перекрёсток, низ
 
 class SD(ImageDraw.ImageDraw):
     """ImageDraw, пропускающий фигуры с fill == SKIP (стрелка в слое дороги)."""
@@ -267,23 +268,32 @@ def persp(im):
 FADE_TOP, FADE_SIDE = 12, 40    # «растворение» дороги к верхнему и боковым краям, px
 
 def _edge_fade(im):
-    import numpy as np
-    a = np.asarray(im, dtype=float)
-    x = np.arange(W, dtype=float)[None, :]
-    y = np.arange(H, dtype=float)[:, None]
-    k = np.clip(y / FADE_TOP, 0, 1)                                   # верх
-    k = k * np.clip((x) / FADE_SIDE, 0, 1) * np.clip((W - 1 - x) / FADE_SIDE, 0, 1)
-    k = k * k * (3 - 2 * k)                                           # smoothstep
-    return Image.fromarray((a * k).astype("uint8"))
+    """«Растворение» дороги к верхнему и боковым краям (smoothstep), без numpy."""
+    kx = []
+    for x in range(W):
+        k = min(max(x / FADE_SIDE, 0.0), 1.0) * min(max((W - 1 - x) / FADE_SIDE, 0.0), 1.0)
+        kx.append(k)
+    src = im.tobytes()
+    out = bytearray(len(src))
+    i = 0
+    for y in range(H):
+        ky = min(max(y / FADE_TOP, 0.0), 1.0)
+        for x in range(W):
+            k = ky * kx[x]
+            k = k * k * (3 - 2 * k)
+            out[i] = int(src[i] * k)
+            i += 1
+    return Image.frombytes("L", (W, H), bytes(out))
 
 def road_layer(road, arrow):
-    """Слой дороги: серая заливка + белая кайма только по дороге + тёмная тень стрелки на дороге
+    """Слой дороги: заливка (ROAD_FILL) + кайма по дороге (ROAD_BORDER_A, px — ROAD_BORDER) + тёмная тень стрелки на дороге
     (сдвиг вниз). road/arrow — холсты (S-кратные): дорога без стрелки и стрелка без дороги."""
     q = 4
     u = road.resize((W * q, H * q), Image.LANCZOS)
     m = u.point(lambda v: 255 if v >= 40 else 0)
-    dil = m.filter(ImageFilter.MaxFilter(2 * ROAD_BORDER * q + 1))
-    border = ImageChops.subtract(dil, m)
+    n = 2 * int(ROAD_BORDER) * q + 1
+    dil = m.filter(ImageFilter.MaxFilter(n)) if ROAD_BORDER > 0 else m   # MaxFilter(1) роняет Pillow
+    border = ImageChops.subtract(dil, m).point(lambda v: ROAD_BORDER_A if v else 0)
     fill = m.point(lambda v: ROAD_FILL if v else 0)
     sh = arrow.resize((W * q, H * q), Image.LANCZOS)
     sh = ImageChops.offset(sh, 0, SHADOW * q)

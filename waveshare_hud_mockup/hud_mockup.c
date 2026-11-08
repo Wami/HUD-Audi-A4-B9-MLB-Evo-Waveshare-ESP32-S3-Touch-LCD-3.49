@@ -76,7 +76,7 @@ extern "C" {
 #define C_ACC_GO     0x2ee62e   /* бар: разгон      */
 #define C_ACC_BRAKE  0xe01414   /* бар: торможение  */
 #define C_FUEL       0x505050   /* полоска расхода  */
-#define C_OVERSPEED  0xff1a1a   /* обводка скорости при превышении */
+#define C_OVERSPEED  HUD_OVERSPEED_COLOR   /* обводка скорости при превышении */
 #define C_SWA        0xff2020   /* Side Assist                     */
 #define C_SIGN_RED   0xcc0000
 #define SIGN_D       64    /* диаметр знака         */
@@ -568,8 +568,8 @@ void    hud_set_psd(bool on)         { g_psd = on; }
 bool    hud_get_psd(void)            { return g_psd; }
 void    hud_set_accel_bar(bool on)   { g_accel = on; }
 bool    hud_get_accel_bar(void)      { return g_accel; }
-static volatile uint8_t g_tol   = HUD_OVERSPEED_TOL_KMH;   /* допуск превышения, км/ч (меню 0..20) */
-void    hud_set_overspeed_tol(uint8_t kmh) { g_tol = kmh > 20 ? 20 : kmh; }
+static volatile uint8_t g_tol   = HUD_OVERSPEED_TOL_KMH;   /* допуск превышения, км/ч (меню 0..30) */
+void    hud_set_overspeed_tol(uint8_t kmh) { g_tol = kmh > 30 ? 30 : kmh; }
 uint8_t hud_get_overspeed_tol(void)  { return g_tol; }
 
 typedef struct { const char *kmh, *m, *km, *h; } HudTxt;
@@ -1187,9 +1187,9 @@ static void hud_update_cb(lv_timer_t *t)
     diag_update(now, diag_src);
 #endif
 
-    /* --- превышение: красная обводка цифр скорости ---
+    /* --- превышение: обводка цифр скорости (HUD_OVERSPEED_COLOR / _WIDTH_PX) ---
        превышение = скорость - ограничение; от HUD_OVERSPEED_START % допуска обводка
-       проявляется, к 100 % допуска — полностью красная */
+       проявляется, к 100 % допуска — полностью непрозрачная */
     {
         int opa = 0;
         if (lim_kmh_for_speed && (d.valid & V_SPEED) && !lv_obj_has_flag(speed_lbl, LV_OBJ_FLAG_HIDDEN)) {
@@ -1624,7 +1624,7 @@ static void menu_refresh(void)
 
 /* ---- панель ползунка ---- */
 static int ov_lo(void)  { return ov_kind == 2 ? 30 : 0; }
-static int ov_hi(void)  { return ov_kind == 0 ? 100 : ov_kind == 1 ? 20 : 90; }
+static int ov_hi(void)  { return ov_kind == 0 ? 100 : ov_kind == 1 ? 30 : 90; }
 static int ov_cur(void) { return ov_kind == 0 ? (int)hud_sound_get_volume() : ov_kind == 1 ? (int)g_tol : (int)g_tank; }
 
 static void ov_labels(void)
@@ -2357,9 +2357,14 @@ void build_hud_mockup(void)
 
     /* Скорость: фиксированная ширина под 3 цифры, выравнивание вправо,
        правый край = 182 + 256 = 438. */
-    /* обводка цифр скорости: 8 красных копий со сдвигом, под основной надписью */
+    /* обводка цифр скорости: 8 копий текста со сдвигом, под основной надписью
+       (толщина — HUD_OVERSPEED_WIDTH_PX, по диагоналям ~2/3 от неё) */
     {
-        static const int8_t off[8][2] = { {-3,0},{3,0},{0,-3},{0,3},{-2,-2},{2,-2},{-2,2},{2,2} };
+#if HUD_OVERSPEED_WIDTH_PX < 1 || HUD_OVERSPEED_WIDTH_PX > 6
+#error "HUD_OVERSPEED_WIDTH_PX must be 1..6"
+#endif
+        enum { OV_W = HUD_OVERSPEED_WIDTH_PX, OV_D = (HUD_OVERSPEED_WIDTH_PX * 2 + 1) / 3 };
+        static const int8_t off[8][2] = { {-OV_W,0},{OV_W,0},{0,-OV_W},{0,OV_W},{-OV_D,-OV_D},{OV_D,-OV_D},{-OV_D,OV_D},{OV_D,OV_D} };
         for (int i = 0; i < 8; i++) {
             lv_obj_t *o = lv_label_create(scr);
             lv_label_set_text(o, "");
