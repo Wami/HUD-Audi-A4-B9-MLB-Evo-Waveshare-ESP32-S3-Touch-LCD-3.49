@@ -722,7 +722,7 @@ several times (noting the times), then look for bits that change at those moment
 ├── .gitignore                 secrets.h is never published
 ├── case/                      3D-printable case: hud_front / hud_rear (.step, .stl), previews
 ├── schematic/                 wiring diagram (DC-DC, CAN Pal): HUD_wiring_CAN_DCDC_en.svg / _ru.svg
-├── docs/                      cams_format.md (camera database format), screens/ (HUD screenshots)
+├── docs/                      cams_format.md (camera database), nav_protocol.md (phone protocol), screens/ (HUD screenshots)
 ├── tools/
 │   ├── gen_hud_images.py      icon and car view generator
 │   ├── gen_nav_images.py      arrow generator

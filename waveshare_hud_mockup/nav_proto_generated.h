@@ -49,6 +49,7 @@ enum nav_maneuver_kind {
     NAV_MANEUVER_KIND_STRAIGHT = 9,
     NAV_MANEUVER_KIND_FINISH = 10,
     NAV_MANEUVER_KIND_REROUTING = 11,
+    NAV_MANEUVER_KIND_ROUNDABOUT = 12,
 };
 
 enum nav_road_event_kind {

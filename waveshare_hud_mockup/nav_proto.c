@@ -122,7 +122,7 @@ static group_result_t parse_g1(nav_snapshot_t *out, const uint8_t *v, uint8_t le
     if (len != 5) return GROUP_BAD_LEN;
     uint8_t kind = v[0];
     if (kind == NAV_MANEUVER_KIND_RESERVED_NONE) return GROUP_ABSENT;
-    if (kind > NAV_MANEUVER_KIND_REROUTING) return GROUP_ABSENT;
+    if (kind > NAV_MANEUVER_KIND_ROUNDABOUT) return GROUP_ABSENT;
     uint32_t distance = rd_u32(v + 1);
     if (distance > 2000000u) return GROUP_ABSENT;
     out->maneuver.present = true;

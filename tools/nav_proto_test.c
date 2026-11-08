@@ -155,6 +155,21 @@ int main(void)
         CHECK(!state.snapshot.meta.present, "rerouting: meta absent");
     }
 
+    /* roundabout: kind 12 is accepted and mapped, not dropped as unknown */
+    {
+        nav_state_t state;
+        nav_proto_init(&state);
+        CHECK(feed(&state, golden("roundabout"), 1000), "roundabout: accepted");
+        CHECK(state.snapshot.maneuver.present &&
+              state.snapshot.maneuver.kind == NAV_MANEUVER_KIND_ROUNDABOUT &&
+              state.snapshot.maneuver.distance_m == 350, "roundabout: kind and distance");
+        CHECK(state.snapshot.remaining.present && state.snapshot.remaining.distance_m == 4000 &&
+              state.snapshot.remaining.time_s == 240, "roundabout: remaining");
+        CHECK(state.snapshot.meta.present &&
+              state.snapshot.meta.source == NAV_G10_SOURCE_NOTIFICATION, "roundabout: meta");
+        CHECK(state.groups_rx[NAV_GROUP_G1_MANEUVER] == 1, "roundabout: G1 counted");
+    }
+
     /* position */
     {
         nav_state_t state;

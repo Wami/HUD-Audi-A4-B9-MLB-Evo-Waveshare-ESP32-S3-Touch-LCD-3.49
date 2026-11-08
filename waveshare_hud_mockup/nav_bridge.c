@@ -51,6 +51,9 @@ static void map_maneuver(HudData *data, const nav_maneuver_t *maneuver)
     case NAV_MANEUVER_KIND_STRAIGHT:     main = 0x0B; dir = 0x00; break; /* FollowStreet */
     case NAV_MANEUVER_KIND_FINISH:       main = 0x03; dir = 0x00; break; /* Arrived */
     case NAV_MANEUVER_KIND_REROUTING:    main = 0x09; dir = 0x00; break; /* "..." */
+    /* No exit direction in v1: use the neutral sector; the HUD still shows
+       the roundabout symbol and the distance. */
+    case NAV_MANEUVER_KIND_ROUNDABOUT:   main = 0x15; dir = 0x80; break; /* Roundabout */
     default: return;
     }
 

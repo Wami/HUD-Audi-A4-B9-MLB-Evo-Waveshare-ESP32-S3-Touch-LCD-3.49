@@ -719,7 +719,7 @@ python tools/can_bitdiff.py can_log_0001.txt.lzma 0x394 --from 30 --to 60
 ├── .gitignore                 secrets.h не публикуется
 ├── case/                      корпус для 3D-печати: hud_front / hud_rear (.step, .stl), превью
 ├── schematic/                 схема подключения (DC-DC, CAN Pal): HUD_wiring_CAN_DCDC_en.svg / _ru.svg
-├── docs/                      cams_format.md (формат базы камер), screens/ (скриншоты HUD)
+├── docs/                      cams_format.md (формат базы камер), nav_protocol.md (BLE-протокол телефона), screens/ (скриншоты HUD)
 ├── tools/
 │   ├── gen_hud_images.py      генератор значков и машинки
 │   ├── gen_nav_images.py      генератор стрелок
