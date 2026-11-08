@@ -111,8 +111,6 @@ extern "C" {
 #define NAV_DY       0
 #define ANIM_DY      0
 #endif
-#define C_LINK_BLE   0x1f4fb0   /* BLE подключён */
-#define C_LINK_CAN   0x1e8a3c   /* данные по CAN */
 #define C_BAR_ON     0x4a90d9
 #define C_BAR_OFF    0x333333
 
@@ -1217,15 +1215,14 @@ static void hud_update_cb(lv_timer_t *t)
     tsr_update(&d, g_vze);
 #endif
 
-    /* значок источника данных — в верхней строке между «сколько заправить» и передачей, на месте кружка TSR
-       (кружок показан — значка нет). Нет связи — серый «BT ...», BLE — синий, свой CAN — зелёная надпись CAN */
+    /* значок «нет связи» — в верхней строке между «сколько заправить» и передачей, на месте кружка TSR
+       (кружок показан — значка нет). Серое «BT ...» показываем только когда связи нет;
+       при связи (BLE или свой CAN) значок не показывается */
     {
-        int src = d.link_up ? hud_src_current() : -1;
-        if (src == 1)      { set_text(link_lbl, "CAN");               set_text_color(link_lbl, C_LINK_CAN); }
-        else if (src == 0) { set_text(link_lbl, LV_SYMBOL_BLUETOOTH); set_text_color(link_lbl, C_LINK_BLE); }
-        else               { set_text(link_lbl, LV_SYMBOL_BLUETOOTH " ..."); set_text_color(link_lbl, 0x666666); }
-        bool lshow = !link_pf && !tsr_shown;
+        bool lshow = !d.link_up && !link_pf && !tsr_shown;
         if (lshow) {
+            set_text(link_lbl, LV_SYMBOL_BLUETOOTH " ...");
+            set_text_color(link_lbl, 0x666666);
             lv_obj_update_layout(link_lbl);
             int x = top_gap_cx() - lv_obj_get_width(link_lbl) / 2;
             if (lv_obj_get_x(link_lbl) != x) lv_obj_set_x(link_lbl, x);
