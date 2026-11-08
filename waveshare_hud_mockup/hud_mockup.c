@@ -1453,11 +1453,13 @@ static void hud_update_cb(lv_timer_t *t)
     }
 
 #if HUD_NAV_BAR_TOP
-    /* Вертикальная шкала у правого края: фон виден всегда, когда есть
-       навигация и дистанция до манёвра; заливка — только при bar-graph. */
-    bool bar_show = nav && (d.valid & V_MDIST);
+    /* Вертикальная шкала у правого края: видна, когда есть навигация,
+       дистанция до манёвра и bar-graph. С телефона прогресс не приходит —
+       nav_bridge считает его из дистанции G1 (spec §10, п. 6); 0xFF значит
+       «прогресса нет» (BAP без бар-графа, rerouting) — шкала скрыта. */
+    bool bar_show = nav && (d.valid & V_MDIST) && d.bargraph != 0xFF;
     vis(top_bar, bar_show);
-    if (bar_show && d.bargraph != 0xFF) {
+    if (bar_show) {
         int pct = HUD_ANIM_BAR_INVERT ? 100 - d.bargraph : d.bargraph;   /* растёт к манёвру */
         int h = pct * TOP_BAR_H / 100;
         if (h < 0) h = 0;

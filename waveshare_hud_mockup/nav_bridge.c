@@ -9,6 +9,10 @@
   Distances are shown as the phone sends them, in Navigator-like steps. There is
   no interpolation between snapshots; the fast sender cycle (250 ms) makes the
   steps appear promptly without inventing intermediate values.
+
+  The phone sends no progress field, so the bar toward the maneuver is derived
+  here from the G1 distance (protocol/spec.md §10, item 6). It uses the BAP 0x12
+  convention the renderer already expects: 100 = far, 0 = at the maneuver.
 */
 #include "nav_bridge.h"
 
@@ -31,6 +35,16 @@ static void set_distance(uint32_t meters, uint32_t *x10, uint8_t *unit)
         *x10 = meters * 10u;
         *unit = 0;
     }
+}
+
+/* Progress bar toward the maneuver: 100 = far, 0 = at the maneuver, linear up
+   to NAV_BRIDGE_BAR_FAR_M. Same convention as BAP 0x12 (HUD_ANIM_BAR_INVERT). */
+#define NAV_BRIDGE_BAR_FAR_M 1000u
+
+static uint8_t bar_from_distance(uint32_t meters)
+{
+    if (meters >= NAV_BRIDGE_BAR_FAR_M) return 100;
+    return (uint8_t)(meters * 100u / NAV_BRIDGE_BAR_FAR_M);
 }
 
 static void map_maneuver(HudData *data, const nav_maneuver_t *maneuver)
@@ -65,7 +79,11 @@ static void map_maneuver(HudData *data, const nav_maneuver_t *maneuver)
     data->man2_main = 0;
     data->man2_dir = 0;
     set_distance(maneuver->distance_m, &data->man_dist_x10, &data->man_unit);
-    data->bargraph = 0xFF;          /* the phone snapshot hides the progress bar */
+    /* Rerouting carries no distance ("route recalculation, no arrow or
+       distance", spec §6.3): keep the bar hidden instead of showing it full. */
+    data->bargraph = (maneuver->kind == NAV_MANEUVER_KIND_REROUTING)
+                     ? 0xFF
+                     : bar_from_distance(maneuver->distance_m);
     data->valid |= V_MAN | V_MDIST;
 }
 

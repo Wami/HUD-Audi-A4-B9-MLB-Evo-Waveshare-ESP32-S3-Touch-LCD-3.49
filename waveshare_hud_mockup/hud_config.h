@@ -35,7 +35,7 @@
 #ifndef HUD_PLATFORM
 #define HUD_PLATFORM         HUD_PLATFORM_MQB   /* ← по умолчанию MLB-Evo / default: MLB-Evo */
 #endif
-#define HUD_DATA_SOURCE      HUD_SRC_FAKE
+#define HUD_DATA_SOURCE      HUD_SRC_BLE
 #define HUD_AUTO_CAN_HOLD_MS 1000   /* AUTO: столько без кадров по CAN — переходим на BLE */
 
 /* GATT-сервер для телефонного канала навигации (protocol/spec.md v1).

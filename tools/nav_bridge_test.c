@@ -118,7 +118,7 @@ int main(void)
         CHECK(d.valid & V_MAN, "route: V_MAN");
         CHECK(d.man_main == 0x0D && d.man_dir == 0xC0, "route: right turn as BAP turn");
         CHECK(d.man_dist_x10 == 3000 && d.man_unit == 0, "route: distance in meters x10");
-        CHECK(d.bargraph == 0xFF, "route: progress bar hidden");
+        CHECK(d.bargraph == 30, "route: bar derived from 300 m of 1 km");
         CHECK(d.rg_active == 1, "route: active");
         CHECK(d.valid & V_DEST, "route: V_DEST");
         CHECK(d.dest_dist_x10 == 125 && d.dest_unit == 1, "route: remaining distance in km x10");
@@ -139,6 +139,7 @@ int main(void)
         CHECK(d.valid & V_MAN, "roundabout: V_MAN");
         CHECK(d.man_main == 0x15 && d.man_dir == 0xE0, "roundabout: upper-right BAP sector");
         CHECK(d.man_dist_x10 == 3500 && d.man_unit == 0, "roundabout: distance in meters x10");
+        CHECK(d.bargraph == 35, "roundabout: bar derived from 350 m");
         CHECK(d.valid & V_DEST && d.dest_dist_x10 == 40 && d.dest_unit == 1,
               "roundabout: remaining distance in km x10");
         CHECK(d.tte_h == 0 && d.tte_min == 4, "roundabout: remaining time");
@@ -157,6 +158,32 @@ int main(void)
         CHECK(d.valid & V_RABOUT_EXIT && d.roundabout_exit == 2,
               "roundabout_exit: exit number exposed");
         CHECK(d.man_dist_x10 == 3500 && d.man_unit == 0, "roundabout_exit: distance");
+    }
+
+    /* Distance bar: linear up to 1 km, 100 = far (BAP 0x12 convention). */
+    {
+        reset_state(1000);
+        feed("route_right_300m", 1000);
+        g_state.snapshot.maneuver.distance_m = 0;      /* "маневр прямо сейчас" */
+        HudData d = fresh_data();
+        nav_bridge_apply(&d, 1000);
+        CHECK((d.valid & V_MDIST) && d.man_dist_x10 == 0, "bar: zero distance at the maneuver");
+        CHECK(d.bargraph == 0, "bar: zero distance is a full bar");
+    }
+    {
+        reset_state(1000);
+        feed("rerouting", 1000);
+        HudData d = fresh_data();
+        nav_bridge_apply(&d, 1000);
+        CHECK((d.valid & V_MAN) && d.man_main == 0x09, "bar: rerouting maneuver");
+        CHECK(d.bargraph == 0xFF, "bar: hidden while rerouting");
+    }
+    {
+        reset_state(1000);
+        feed("far_maneuver_70000m", 1000);
+        HudData d = fresh_data();
+        nav_bridge_apply(&d, 1000);
+        CHECK(d.bargraph == 100, "bar: empty beyond 1 km");
     }
 
     /* Camera without maneuver: limit and remaining still apply, no arrow. */
