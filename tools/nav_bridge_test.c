@@ -137,11 +137,26 @@ int main(void)
         nav_bridge_apply(&d, 1000);
 
         CHECK(d.valid & V_MAN, "roundabout: V_MAN");
-        CHECK(d.man_main == 0x15 && d.man_dir == 0x80, "roundabout: neutral BAP sector");
+        CHECK(d.man_main == 0x15 && d.man_dir == 0xE0, "roundabout: upper-right BAP sector");
         CHECK(d.man_dist_x10 == 3500 && d.man_unit == 0, "roundabout: distance in meters x10");
         CHECK(d.valid & V_DEST && d.dest_dist_x10 == 40 && d.dest_unit == 1,
               "roundabout: remaining distance in km x10");
         CHECK(d.tte_h == 0 && d.tte_min == 4, "roundabout: remaining time");
+        CHECK(!(d.valid & V_RABOUT_EXIT), "roundabout: no exit number without G11");
+    }
+
+    /* Roundabout with G11: number is exposed without changing the neutral sector. */
+    {
+        reset_state(1000);
+        feed("roundabout_exit", 1000);
+        HudData d = fresh_data();
+        nav_bridge_apply(&d, 1000);
+
+        CHECK(d.valid & V_MAN, "roundabout_exit: V_MAN");
+        CHECK(d.man_main == 0x15 && d.man_dir == 0xE0, "roundabout_exit: upper-right BAP sector");
+        CHECK(d.valid & V_RABOUT_EXIT && d.roundabout_exit == 2,
+              "roundabout_exit: exit number exposed");
+        CHECK(d.man_dist_x10 == 3500 && d.man_unit == 0, "roundabout_exit: distance");
     }
 
     /* Camera without maneuver: limit and remaining still apply, no arrow. */

@@ -72,9 +72,10 @@ public:
         taskEXIT_CRITICAL(&s_mux);
         if (HUD_LOG_BLE && applied && (uint32_t)(now - s_log_ms) >= 1000u) {
             s_log_ms = now;
-            arduino_printf("[nav] G1=%d/%u/%lu G5=%d/%u G6=%d/%u G8=%d/%lu/%lu G9=%d %.5f,%.5f\n",
+            arduino_printf("[nav] G1=%d/%u/%lu G11=%d/%u G5=%d/%u G6=%d/%u G8=%d/%lu/%lu G9=%d %.5f,%.5f\n",
                            snapshot.maneuver.present, (unsigned)snapshot.maneuver.kind,
                            (unsigned long)snapshot.maneuver.distance_m,
+                           snapshot.roundabout_exit.present, (unsigned)snapshot.roundabout_exit.exit_no,
                            snapshot.speed_limit.present, (unsigned)snapshot.speed_limit.kph,
                            snapshot.camera.present, (unsigned)snapshot.camera.distance_m,
                            snapshot.remaining.present, (unsigned long)snapshot.remaining.distance_m,

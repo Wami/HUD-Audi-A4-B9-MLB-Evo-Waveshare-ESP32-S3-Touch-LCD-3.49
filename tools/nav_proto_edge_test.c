@@ -303,6 +303,51 @@ int main(void)
         CHECK(memcmp(state.snapshot.next_street.text, text65, 64) == 0, "text 65: code-point boundary");
     }
 
+    /* G11: 1..99 accepted; 0/100 absent; wrong length drops only G11. */
+    {
+        uint8_t g0 = 1, g1[5] = { NAV_MANEUVER_KIND_ROUNDABOUT, 0x5E, 0x01, 0, 0 };
+        uint8_t g11 = 2;
+
+        nav_proto_init(&state);
+        size_t t = 0;
+        t = add_tlv(tlvs, t, NAV_GROUP_G0_SESSION, &g0, 1);
+        t = add_tlv(tlvs, t, NAV_GROUP_G1_MANEUVER, g1, 5);
+        t = add_tlv(tlvs, t, NAV_GROUP_G11_ROUNDABOUT_EXIT, &g11, 1);
+        size_t n = state_with(msg, 32, t);
+        CHECK(nav_proto_on_write(&state, msg, n, 1000), "G11=2: snapshot accepted");
+        CHECK(state.snapshot.roundabout_exit.present &&
+              state.snapshot.roundabout_exit.exit_no == 2, "G11=2: stored");
+
+        nav_proto_init(&state);
+        t = 0; g11 = 0;
+        t = add_tlv(tlvs, t, NAV_GROUP_G0_SESSION, &g0, 1);
+        t = add_tlv(tlvs, t, NAV_GROUP_G1_MANEUVER, g1, 5);
+        t = add_tlv(tlvs, t, NAV_GROUP_G11_ROUNDABOUT_EXIT, &g11, 1);
+        n = state_with(msg, 33, t);
+        CHECK(nav_proto_on_write(&state, msg, n, 1000), "G11=0: snapshot accepted");
+        CHECK(!state.snapshot.roundabout_exit.present, "G11=0: group absent");
+
+        nav_proto_init(&state);
+        t = 0; g11 = 100;
+        t = add_tlv(tlvs, t, NAV_GROUP_G0_SESSION, &g0, 1);
+        t = add_tlv(tlvs, t, NAV_GROUP_G1_MANEUVER, g1, 5);
+        t = add_tlv(tlvs, t, NAV_GROUP_G11_ROUNDABOUT_EXIT, &g11, 1);
+        n = state_with(msg, 34, t);
+        CHECK(nav_proto_on_write(&state, msg, n, 1000), "G11=100: snapshot accepted");
+        CHECK(!state.snapshot.roundabout_exit.present, "G11=100: group absent");
+
+        nav_proto_init(&state);
+        t = 0;
+        uint8_t bad[2] = { 2, 0 };
+        t = add_tlv(tlvs, t, NAV_GROUP_G0_SESSION, &g0, 1);
+        t = add_tlv(tlvs, t, NAV_GROUP_G1_MANEUVER, g1, 5);
+        t = add_tlv(tlvs, t, NAV_GROUP_G11_ROUNDABOUT_EXIT, bad, 2);
+        n = state_with(msg, 35, t);
+        CHECK(nav_proto_on_write(&state, msg, n, 1000), "G11 len 2: snapshot accepted");
+        CHECK(!state.snapshot.roundabout_exit.present, "G11 len 2: group absent");
+        CHECK(state.bad_lengths == 1, "G11 len 2: bad length counted");
+    }
+
     /* Fragment gap resets the partial buffer; a complete sequence still assembles. */
     {
         nav_proto_init(&state);

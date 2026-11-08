@@ -25,7 +25,7 @@ COND = os.path.join(HERE, "RobotoCondensed-Bold.ttf")   # цифры знака 
 # имя файла/символа, --size, символы. Размеры подобраны под прежнюю высоту цифр.
 FONTS = [
     ("hud_font_speed", 116, "0123456789", TNUM),
-    ("hud_font_gear",   22, "PRNDSMEOfroad123456789", TNUM),
+    ("hud_font_gear",   22, "PRNDSMEOfroad0123456789", TNUM),
     ("hud_font_fuel",   22, "0123456789.Lлgal :кмftimhч", TNUM),  # tank + route: "13 л", "7.0км 10:00", "4.3mi 10:00"
     ("hud_font_route",  28, "0123456789:.kmhift кмч", TNUM),   # без букв с выносными вниз (y): иначе растёт межстрочный
     ("hud_font_small",  26, "0123456789", TNUM),
@@ -62,8 +62,8 @@ def gen(name, size, symbols, font):
     s = open(out, encoding="utf-8").read()
     s = s.replace("#ifdef LV_LVGL_H_INCLUDE_SIMPLE",
                   "#define LV_LVGL_H_INCLUDE_SIMPLE\n#ifdef LV_LVGL_H_INCLUDE_SIMPLE", 1)
-    s = re.sub(r"--font \S*[/\\]([^/\\\s]+\.ttf)", r"--font \1", s)
-    s = re.sub(r"-o \S*" + name + r"\.c", "-o " + name + ".c", s)
+    s = re.sub(r"--font .*[/\\]([^/\\]+\.ttf)", r"--font \1", s)
+    s = re.sub(r"-o .*[/\\](" + name + r"\.c)", r"-o \1", s)
     open(out, "w", encoding="utf-8").write(s)
     print("ok", name)
 

@@ -31,7 +31,7 @@ extern "C" void hud_diag_save(void)
     g_diag.nav_crc = nav_server_crc_errors();
     g_diag.nav_unknown = nav_server_unknown_tlvs();
     g_diag.nav_bad_len = nav_server_bad_lengths();
-    for (int i = 0; i < 12; i++) g_diag.nav_groups[i] = nav_server_group_count((uint8_t)i);
+    for (int i = 0; i < 13; i++) g_diag.nav_groups[i] = nav_server_group_count((uint8_t)i);
     Preferences p;
     if (p.begin("hudd", false)) { p.putBytes("d", &g_diag, sizeof g_diag); p.end(); }
 }

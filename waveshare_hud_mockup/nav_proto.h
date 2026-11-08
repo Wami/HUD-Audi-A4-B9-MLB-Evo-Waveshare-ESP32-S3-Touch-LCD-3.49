@@ -23,7 +23,7 @@ extern "C" {
 #define NAV_PROTO_MAX_TEXT_BYTES 64
 #define NAV_PROTO_STREET_BYTES 65
 #define NAV_PROTO_LANE_COUNT 8
-#define NAV_PROTO_GROUP_COUNT 12
+#define NAV_PROTO_GROUP_COUNT 13
 
 typedef struct {
     bool present;
@@ -35,6 +35,11 @@ typedef struct {
     uint8_t kind;
     uint32_t distance_m;
 } nav_maneuver_t;
+
+typedef struct {
+    bool present;
+    uint8_t exit_no;
+} nav_roundabout_exit_t;
 
 typedef struct {
     bool present;
@@ -91,6 +96,7 @@ typedef struct {
 typedef struct {
     nav_session_t session;
     nav_maneuver_t maneuver;
+    nav_roundabout_exit_t roundabout_exit;
     nav_lanes_t lanes;
     nav_text_t next_street;
     nav_text_t current_street;

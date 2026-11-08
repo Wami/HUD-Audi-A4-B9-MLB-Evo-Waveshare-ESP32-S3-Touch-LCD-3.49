@@ -168,6 +168,21 @@ int main(void)
         CHECK(state.snapshot.meta.present &&
               state.snapshot.meta.source == NAV_G10_SOURCE_NOTIFICATION, "roundabout: meta");
         CHECK(state.groups_rx[NAV_GROUP_G1_MANEUVER] == 1, "roundabout: G1 counted");
+        CHECK(!state.snapshot.roundabout_exit.present, "roundabout: no exit number");
+    }
+
+    /* roundabout_exit: G11 is stored only alongside the roundabout maneuver */
+    {
+        nav_state_t state;
+        nav_proto_init(&state);
+        CHECK(feed(&state, golden("roundabout_exit"), 1000), "roundabout_exit: accepted");
+        CHECK(state.snapshot.maneuver.present &&
+              state.snapshot.maneuver.kind == NAV_MANEUVER_KIND_ROUNDABOUT,
+              "roundabout_exit: maneuver");
+        CHECK(state.snapshot.roundabout_exit.present &&
+              state.snapshot.roundabout_exit.exit_no == 2, "roundabout_exit: exit number");
+        CHECK(state.groups_rx[NAV_GROUP_G11_ROUNDABOUT_EXIT] == 1,
+              "roundabout_exit: G11 counted");
     }
 
     /* position */

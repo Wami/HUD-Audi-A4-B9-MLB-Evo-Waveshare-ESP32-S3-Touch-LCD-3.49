@@ -29,6 +29,7 @@
 #define NAV_GROUP_G8_REMAINING 0x09u
 #define NAV_GROUP_G9_POSITION 0x0Au
 #define NAV_GROUP_G10_META 0x0Bu
+#define NAV_GROUP_G11_ROUNDABOUT_EXIT 0x0Cu
 
 enum nav_mode {
     NAV_MODE_IDLE = 0,

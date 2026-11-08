@@ -261,11 +261,11 @@ static String diag_html()
     row("— CRC / неизв. TLV / длина", String((unsigned)g.nav_crc) + " / " + String((unsigned)g.nav_unknown) + " / " + String((unsigned)g.nav_bad_len));
     {
         String groups;
-        for (int i = 1; i <= 11; i++) {
+        for (int i = 1; i <= 12; i++) {
             if (i > 1) groups += " ";
             groups += String((unsigned)g.nav_groups[i]);
         }
-        row("— группы G0..G10", groups);
+        row("— группы G0..G11", groups);
     }
     row("Память / free", "RAM " + String((unsigned)(g.heap_free / 1024)) + " КБ, PSRAM " + String((unsigned)(g.psram_free / 1024)) + " КБ");
     s += "</table>";

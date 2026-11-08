@@ -44,6 +44,7 @@ extern "C" {
 #define V_SWA    (1u << 26)  /* swa_* (SWA_01 0x30F)              */
 #define V_GPS    (1u << 27)  /* gps_lat/lon/fix/sat (NavPos_01 0x486, 5 Гц)   */
 #define V_HDG    (1u << 28)  /* gps_hdg_x10, gps_hdop_x10 (NavData_01 0x484, 5 Гц) */
+#define V_RABOUT_EXIT (1u << 29) /* roundabout_exit (номер съезда с телефона) */
 
 #define BLINK_L_TAKT  0x01
 #define BLINK_R_TAKT  0x02
@@ -139,6 +140,7 @@ typedef struct {
     uint8_t  man_z;          /* BAP 0x17 Z-level                        */
     uint8_t  man2_main;      /* BAP 0x17 Maneuver_2 (следующий), 0 = нет */
     uint8_t  man2_dir;
+    uint8_t  roundabout_exit; /* номер съезда на кольце с телефона, 0 = нет */
     uint8_t  man_side_n;     /* BAP 0x17 число боковых улиц (Sidestreets) */
     uint8_t  man_side[8];    /* направления боковых улиц (первые 8)     */
     uint8_t  man_raw_len;    /* длина сообщения 0x17 (диагностика)      */

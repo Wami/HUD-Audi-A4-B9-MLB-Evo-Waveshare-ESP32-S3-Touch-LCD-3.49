@@ -101,6 +101,7 @@ extern "C" {
 #define C_NAV_ARROW  0x30b0f0   /* маршрут — голубой, как у Audi */
 #define C_NAV_ROAD   0xffffff   /* слой дороги: серая заливка + белая кайма заложены в маске яркостью */
 #define C_NAV_NEXT   0xa8a8a8
+#define C_NAV_EXIT   0xffffff   /* номер съезда в центре кольца */
 #define TOP_BAR_W    8           /* HUD_NAV_BAR_TOP: вертикальная полоска у правого края */
 #define TOP_BAR_H    140
 #if HUD_NAV_BAR_TOP
@@ -130,7 +131,7 @@ static lv_obj_t *ps_box, *ps_tri;           /* предупреждение pre 
 #define ACC_Y        (172 - ACC_SQ)   /* самый низ экрана, подальше от дистанции до манёвра */
 static lv_obj_t *acc_sq[2][ACC_SEG];
 static lv_obj_t *fuel_bar;               /* расход топлива, правый край */
-static lv_obj_t *arrow_ph, *arrow_road, *arrow_img, *arrow_lbl, *nav_dist_lbl, *next_img;
+static lv_obj_t *arrow_ph, *arrow_road, *arrow_img, *arrow_lbl, *nav_dist_lbl, *next_img, *exit_lbl;
 static lv_obj_t *anim_img;                 /* анимированная стрелка из /arrows.bin (кадр на чёрном фоне) */
 static lv_obj_t *bar_seg[16];
 static lv_obj_t *top_bar, *top_fill;      /* HUD_NAV_BAR_TOP: вертикальная шкала прогресса справа */
@@ -1400,6 +1401,14 @@ static void hud_update_cb(lv_timer_t *t)
         bool calc = (d.man_main == 0x09 || d.man_main == 0x0A);
         vis(arrow_img, ni != NULL && !anim_on);
         vis(arrow_road, ni != NULL && ni->road != NULL && !anim_on);
+        bool show_exit = ni != NULL && !anim_on && (d.valid & V_RABOUT_EXIT) &&
+                         d.roundabout_exit >= 1 && (d.man_main == 0x15 || d.man_main == 0x16);
+        if (show_exit) {
+            char nb[4];
+            snprintf(nb, sizeof nb, "%u", (unsigned)d.roundabout_exit);
+            set_text(exit_lbl, nb);
+        }
+        vis(exit_lbl, show_exit);                        /* цифра в центре кольца */
         vis(arrow_lbl, ni == NULL && calc);             /* расчёт маршрута; 0x00/0x01 — пусто */
 
 #if HUD_LOG_BAP
@@ -2224,6 +2233,14 @@ void build_hud_mockup(void)
     lv_obj_set_width(nav_dist_lbl, 192);
     lv_obj_set_pos(nav_dist_lbl, 0, NAV_TOP_Y);          /* сверху, над стрелкой */
     lv_obj_add_flag(nav_dist_lbl, LV_OBJ_FLAG_HIDDEN);
+    exit_lbl = lv_label_create(arrow_ph);
+    lv_label_set_text(exit_lbl, "");
+    lv_obj_set_style_text_font(exit_lbl, &hud_font_gear, 0);   /* как у передачи КПП */
+    lv_obj_set_style_text_color(exit_lbl, lv_color_hex(C_NAV_EXIT), 0);
+    lv_obj_set_style_text_align(exit_lbl, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(exit_lbl, 48);
+    lv_obj_set_pos(exit_lbl, 72, 46 + NAV_DY - 8);       /* центр кольца */
+    lv_obj_add_flag(exit_lbl, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(arrow_ph, LV_OBJ_FLAG_HIDDEN);
 
     /* Машинка с открытыми элементами — в области стрелки */

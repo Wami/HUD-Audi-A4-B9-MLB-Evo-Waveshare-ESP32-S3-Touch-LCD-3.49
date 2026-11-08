@@ -212,6 +212,15 @@ static group_result_t parse_g10(nav_snapshot_t *out, const uint8_t *v, uint8_t l
     return GROUP_OK;
 }
 
+static group_result_t parse_g11(nav_snapshot_t *out, const uint8_t *v, uint8_t len)
+{
+    if (len != 1) return GROUP_BAD_LEN;
+    if (v[0] < 1 || v[0] > 99) return GROUP_ABSENT;
+    out->roundabout_exit.present = true;
+    out->roundabout_exit.exit_no = v[0];
+    return GROUP_OK;
+}
+
 static void count_group(nav_state_t *state, uint8_t group, group_result_t result)
 {
     switch (result) {
@@ -258,6 +267,7 @@ static bool parse_state(nav_state_t *state, const uint8_t *msg, size_t len, uint
         case NAV_GROUP_G8_REMAINING: result = parse_g8(&parsed, v, glen); break;
         case NAV_GROUP_G9_POSITION: result = GROUP_BAD_VALUE; break; /* forbidden in type 1 */
         case NAV_GROUP_G10_META: result = parse_g10(&parsed, v, glen); break;
+        case NAV_GROUP_G11_ROUNDABOUT_EXIT: result = parse_g11(&parsed, v, glen); break;
         default: result = GROUP_UNKNOWN; break;
         }
         count_group(state, group, result);
@@ -419,6 +429,7 @@ void nav_proto_tick(nav_state_t *state, uint32_t now_ms)
         if (age > NAV_PROTO_CLEAR_MS) {
             state->stale = true;
             state->snapshot.maneuver.present = false;
+            state->snapshot.roundabout_exit.present = false;
             state->snapshot.lanes.present = false;
             state->snapshot.next_street.present = false;
             state->snapshot.current_street.present = false;

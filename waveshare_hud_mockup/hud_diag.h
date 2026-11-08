@@ -38,10 +38,10 @@ typedef struct {
     /* телефонный канал навигации (nav_proto) */
     uint32_t nav_snapshots, nav_positions;
     uint32_t nav_crc, nav_unknown, nav_bad_len;
-    uint32_t nav_groups[12];      /* принятые группы по id (G0..G10) */
+    uint32_t nav_groups[13];      /* принятые группы по id (G0..G11) */
 } hud_diag_t;
 
-#define HUD_DIAG_VER 3
+#define HUD_DIAG_VER 4
 
 extern hud_diag_t g_diag;         /* счётчики текущего сеанса (пишет hud_mockup.c, hud_cams.cpp) */
 

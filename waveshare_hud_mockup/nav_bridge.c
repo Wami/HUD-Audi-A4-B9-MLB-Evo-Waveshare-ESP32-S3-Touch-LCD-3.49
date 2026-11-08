@@ -51,9 +51,10 @@ static void map_maneuver(HudData *data, const nav_maneuver_t *maneuver)
     case NAV_MANEUVER_KIND_STRAIGHT:     main = 0x0B; dir = 0x00; break; /* FollowStreet */
     case NAV_MANEUVER_KIND_FINISH:       main = 0x03; dir = 0x00; break; /* Arrived */
     case NAV_MANEUVER_KIND_REROUTING:    main = 0x09; dir = 0x00; break; /* "..." */
-    /* No exit direction in v1: use the neutral sector; the HUD still shows
-       the roundabout symbol and the distance. */
-    case NAV_MANEUVER_KIND_ROUNDABOUT:   main = 0x15; dir = 0x80; break; /* Roundabout */
+    /* No exit direction in v1: the phone uses a fixed upper-right exit
+       (45°, sector 14) as the neutral roundabout symbol; the HUD keeps the
+       exit number in the centre. */
+    case NAV_MANEUVER_KIND_ROUNDABOUT:   main = 0x15; dir = 0xE0; break; /* upper-right */
     default: return;
     }
 
@@ -139,6 +140,12 @@ void nav_bridge_apply(HudData *data, uint32_t now_ms)
         state.snapshot.session.present &&
         state.snapshot.session.mode != NAV_MODE_IDLE) {
         map_maneuver(data, &state.snapshot.maneuver);
+        if (state.snapshot.maneuver.present &&
+            state.snapshot.maneuver.kind == NAV_MANEUVER_KIND_ROUNDABOUT &&
+            state.snapshot.roundabout_exit.present) {
+            data->roundabout_exit = state.snapshot.roundabout_exit.exit_no;
+            data->valid |= V_RABOUT_EXIT;
+        }
         map_remaining(data, &state.snapshot.remaining);
         map_speed_limit(data, &state.snapshot.speed_limit);
         if (state.snapshot.camera.present) {

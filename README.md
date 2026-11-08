@@ -817,8 +817,8 @@ On MQB the Lane Assist rule (0x397) is used without an interval in the BLE ACL: 
 
 - speed camera database (SCDB): signs and a warning when approaching the fine threshold —
   on the HUD itself, using the car's GNSS from I-CAN, configurable threshold;
-- roundabout exit number and street names (BAP `TurnToInfo`, side streets from
-  `ManeuverDescriptor`);
+- roundabout exit number from the phone (G11) is implemented; street names
+  remain (BAP `TurnToInfo`, side streets from `ManeuverDescriptor`);
 - ACC following distance (1–5) on the icon.
 
 ---
